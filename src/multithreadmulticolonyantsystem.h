@@ -1,0 +1,151 @@
+#pragma once
+#include <vector>
+#include <random>
+#include <thread>
+#include <mutex>
+#include <condition_variable>
+#include <atomic>
+#include "board.h"
+#include "timer.h"
+#include "sudokusolver.h"
+
+// Forward declaration - must be before multicolonyantsystem.h to allow friend declaration
+class MultiColonyAntSystem;
+
+#include "multicolonyantsystem.h"
+#include "colonyant.h"
+
+// Forward declaration
+class MultiThreadMultiColonyAntSystem;
+
+// Multi-colony thread class representing one thread running a multi-colony ant system
+// Each thread contains multiple colonies (ACS and MMAS types)
+class MultiColonyThread
+{
+private:
+	int threadId;
+	MultiColonyAntSystem* multiColonySystem;
+	
+	Board iterationBest;      // Best solution in current iteration
+	Board bestSol;            // Best solution found so far
+	Board receivedIterationBest;  // Received iteration-best from ring topology
+	Board receivedBestSol;        // Received best-so-far from random topology
+	
+	int iterationBestScore;   // Number of cells filled in iteration best
+	int bestSolScore;         // Number of cells filled in best so far
+	int receivedIterationBestScore;  // Score of received iteration-best
+	int receivedBestSolScore;        // Score of received best-so-far
+	
+	int currentIteration;
+	int numCells;  // Number of cells in the puzzle
+	int numUnits;  // Number of units (values per cell)
+	float cpTime;  // Total CP time for this thread (seconds)
+	float cooperativeGameTime;      // Total Cooperative Game Theory time (seconds)
+	float pheromoneFusionTime;      // Total Pheromone Fusion time (seconds)
+	float publicPathRecommendationTime;  // Total Public Path Recommendation time (seconds)
+	float communicationTime;        // Total Communication Between Threads time (seconds)
+	
+	// Helper method for pheromone calculation
+	float PherAdd(int cellsFilled);
+	
+public:
+	MultiColonyThread(int id, int antsPerColony, float q0, float rho, float pher0, float bestEvap,
+	               int numColonies, int numACS, float convThreshold, float entropyThreshold);
+	~MultiColonyThread();
+	
+	// Initialize for a new puzzle
+	void Initialize(const Board& puzzle);
+	
+	// Run one iteration of the multi-colony system
+	void RunIteration(const Board& puzzle);
+	
+	// Update pheromone with communication (only for MMAS colonies)
+	void UpdatePheromoneWithCommunication();
+	
+	// Get results
+	const Board& GetIterationBest() const { return iterationBest; }
+	const Board& GetBestSol() const { return bestSol; }
+	int GetIterationBestScore() const { return iterationBestScore; }
+	int GetBestSolScore() const { return bestSolScore; }
+	int GetCurrentIteration() const { return currentIteration; }
+	void SetCurrentIteration(int iter) { currentIteration = iter; }
+	float GetCPTime() const { return cpTime; }
+	void ResetCPTime() { cpTime = 0.0f; }
+	float* GetCPTimePtr() { return &cpTime; }
+	
+	float GetCooperativeGameTime() const { return cooperativeGameTime; }
+	float GetPheromoneFusionTime() const { return pheromoneFusionTime; }
+	float GetPublicPathRecommendationTime() const { return publicPathRecommendationTime; }
+	float GetCommunicationTime() const { return communicationTime; }
+	void AddCommunicationTime(float elapsed) { communicationTime += elapsed; }
+	void ResetAllTimers() 
+	{ 
+		cpTime = 0.0f;
+		cooperativeGameTime = 0.0f;
+		pheromoneFusionTime = 0.0f;
+		publicPathRecommendationTime = 0.0f;
+		communicationTime = 0.0f;
+	}
+	
+	// Set solutions (for communication)
+	void ReceiveIterationBest(const Board& solution);
+	void ReceiveBestSol(const Board& solution);
+	
+	// Get access to underlying multi-colony system for advanced operations
+	MultiColonyAntSystem* GetMultiColonySystem() { return multiColonySystem; }
+};
+
+// Multi-Thread Multi-Colony Ant System
+// Each thread runs an independent MultiColonyAntSystem with multiple colonies inside
+class MultiThreadMultiColonyAntSystem : public SudokuSolver
+{
+private:
+	int numThreads;
+	float maxTime;  // Maximum time in seconds
+	std::vector<MultiColonyThread*> threads;
+	
+	Board globalBest;
+	int globalBestScore;
+	int iterationsCompleted;
+	bool communicationOccurred;
+	float solTime;
+	Timer solutionTimer;
+	
+	std::mt19937 masterRandGen;
+	
+	// Synchronization
+	std::mutex commMutex;
+	std::condition_variable commCV;
+	std::atomic<int> barrier;
+	std::atomic<bool> stopFlag;
+	
+	// Communication helpers
+	int CalculateInterval(int iteration);
+	std::vector<int> GenerateMatchArray();
+	void CommunicateRingTopology();
+	void CommunicateRandomTopology(const std::vector<int>& matchArray);
+	
+	// Thread worker and helper methods
+	void ThreadWorker(int threadId, const Board& puzzle);
+	
+	// Modular helper methods for ThreadWorker
+	bool CheckTimeout();
+	void ReportProgress(int threadId, int iteration, MultiColonyThread* thread, const Board& puzzle);
+	bool CheckSolutionFound(MultiColonyThread* thread);
+	void PerformBarrierSynchronization(const Board& puzzle);
+	void ExecuteMasterThreadTasks(const Board& puzzle);
+	void ExecuteWorkerThreadWait(std::unique_lock<std::mutex>& lock);
+	
+public:
+	MultiThreadMultiColonyAntSystem(int numThreads, int antsPerColony, float q0, float rho,
+	                             float pher0, float bestEvap, int numColonies, int numACS,
+	                             float convThreshold, float entropyThreshold);
+	~MultiThreadMultiColonyAntSystem();
+	
+	virtual bool Solve(const Board& puzzle, float maxTime);
+	virtual float GetSolutionTime() { return solTime; }
+	virtual const Board& GetSolution() { return globalBest; }
+	int GetIterationsCompleted() { return iterationsCompleted; }
+	bool GetCommunicationOccurred() { return communicationOccurred; }
+	void PrintThreadDetails();
+};
