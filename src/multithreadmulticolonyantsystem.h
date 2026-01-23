@@ -40,6 +40,7 @@ private:
 	int numCells;  // Number of cells in the puzzle
 	int numUnits;  // Number of units (values per cell)
 	float cpTime;  // Total CP time for this thread (seconds)
+	float antGuessingTime;  // Time spent by ants in decision-making (seconds)
 	float cooperativeGameTime;      // Total Cooperative Game Theory time (seconds)
 	float pheromoneFusionTime;      // Total Pheromone Fusion time (seconds)
 	float publicPathRecommendationTime;  // Total Public Path Recommendation time (seconds)
@@ -70,8 +71,11 @@ public:
 	int GetCurrentIteration() const { return currentIteration; }
 	void SetCurrentIteration(int iter) { currentIteration = iter; }
 	float GetCPTime() const { return cpTime; }
+	float GetAntGuessingTime() const { return antGuessingTime; }
 	void ResetCPTime() { cpTime = 0.0f; }
+	void ResetAntGuessingTime() { antGuessingTime = 0.0f; }
 	float* GetCPTimePtr() { return &cpTime; }
+	float* GetAntGuessingTimePtr() { return &antGuessingTime; }
 	
 	float GetCooperativeGameTime() const { return cooperativeGameTime; }
 	float GetPheromoneFusionTime() const { return pheromoneFusionTime; }
@@ -81,6 +85,7 @@ public:
 	void ResetAllTimers() 
 	{ 
 		cpTime = 0.0f;
+		antGuessingTime = 0.0f;
 		cooperativeGameTime = 0.0f;
 		pheromoneFusionTime = 0.0f;
 		publicPathRecommendationTime = 0.0f;
@@ -148,4 +153,8 @@ public:
 	int GetIterationsCompleted() { return iterationsCompleted; }
 	bool GetCommunicationOccurred() { return communicationOccurred; }
 	void PrintThreadDetails();
+	
+	// Access to threads for per-thread statistics
+	const std::vector<MultiColonyThread*>& GetThreads() const { return threads; }
+	MultiColonyThread* GetThread(int index) const { return (index >= 0 && index < (int)threads.size()) ? threads[index] : nullptr; }
 };

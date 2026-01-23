@@ -16,7 +16,7 @@
  ******************************************************************************/
 
 #include "multithreadmulticolonyantsystem.h"
-#include "CP.h"
+#include "constraintpropagation.h"
 #include <iostream>
 #include <iomanip>
 #include <algorithm>
@@ -260,6 +260,8 @@ void MultiThreadMultiColonyAntSystem::ThreadWorker(int threadId, const Board& pu
 	
 	// Register this thread's CP time pointer for per-thread tracking
 	CP::RegisterThreadCPTime(thread->GetCPTimePtr());
+	// Register this thread's ant guessing time pointer for per-thread tracking
+	CP::RegisterThreadAntGuessingTime(thread->GetAntGuessingTimePtr());
 	
 	int iter = 0;
 	
@@ -307,6 +309,8 @@ void MultiThreadMultiColonyAntSystem::ThreadWorker(int threadId, const Board& pu
 	
 	// Unregister thread's CP time pointer
 	CP::UnregisterThreadCPTime();
+	// Unregister thread's ant guessing time pointer
+	CP::UnregisterThreadAntGuessingTime();
 }
 
 

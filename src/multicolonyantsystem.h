@@ -51,6 +51,12 @@ class MultiColonyAntSystem : public SudokuSolver
     int iterationCount;
     std::mt19937 randGen;
     std::uniform_real_distribution<float> randomDist;
+    
+    // Timing for multi-colony operations
+    float antGuessingTime;  // Time spent by ants in decision-making
+    float cooperativeGameTime;
+    float pheromoneFusionTime;
+    float publicPathRecommendationTime;
 
     std::vector<Colony> colonies;
 
@@ -85,7 +91,8 @@ public:
                          int numColonies, int numACS, float convThreshold, float entropyThreshold)
         : numColonies(numColonies), numACS(numACS), antsPerColony(antsPerColony), q0(q0), rho(rho), pher0(pher0), bestEvap(bestEvap),
           globalBestPher(0.0f), globalBestVal(0), solTime(0.0f), iterationCount(0),
-          convThreshold(convThreshold), entropyThreshold(entropyThreshold)
+          convThreshold(convThreshold), entropyThreshold(entropyThreshold),
+          antGuessingTime(0.0f), cooperativeGameTime(0.0f), pheromoneFusionTime(0.0f), publicPathRecommendationTime(0.0f)
     {
         colonies.resize(numColonies);
         randomDist = std::uniform_real_distribution<float>(0.0f, 1.0f);
@@ -107,6 +114,12 @@ public:
     virtual float GetSolutionTime() { return solTime; }
     virtual const Board &GetSolution() { return globalBestSol; }
     virtual int GetIterationCount() { return iterationCount; }
+    
+    // Timing getters for multi-colony operations
+    float GetAntGuessingTime() const { return antGuessingTime; }
+    float GetCooperativeGameTime() const { return cooperativeGameTime; }
+    float GetPheromoneFusionTime() const { return pheromoneFusionTime; }
+    float GetPublicPathRecommendationTime() const { return publicPathRecommendationTime; }
 
     // helpers for ants
     inline float Getq0() { return q0; }

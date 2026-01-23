@@ -1,6 +1,6 @@
 #include "sudokuant.h"
 #include "sudokuantsystem.h"
-#include "CP.h"
+#include "constraintpropagation.h"
 #include <chrono>
 
 void SudokuAnt::InitSolution(const Board &puzzle, int startCell )
@@ -25,6 +25,9 @@ void SudokuAnt::StepSolution()
 	}
 	else if ( !sol.GetCell(iCell).Fixed() )
 	{
+		// Time the decision-making phase (ant guessing)
+		auto guessingStartTime = std::chrono::steady_clock::now();
+		
 		// make a choice from the options
 		ValueSet choice = ValueSet(sol.GetNumUnits(), 1);
 		if (parent->random() < parent->Getq0())
@@ -45,14 +48,14 @@ void SudokuAnt::StepSolution()
 				}
 				choice <<= 1;
 			}
-			// Time CP operation
-			auto startTime = std::chrono::steady_clock::now();
-			sol.SetCell(iCell, best);
-			auto endTime = std::chrono::steady_clock::now();
-			auto duration = std::chrono::duration_cast<std::chrono::duration<double>>(endTime - startTime);
-			float elapsed = (float)duration.count();
-			CP::AddTime(elapsed);
 			
+			// End timing for decision-making
+			auto guessingEndTime = std::chrono::steady_clock::now();
+			auto guessingDuration = std::chrono::duration_cast<std::chrono::duration<double>>(guessingEndTime - guessingStartTime);
+			float guessingElapsed = (float)guessingDuration.count();
+			CP::AddAntGuessingTime(guessingElapsed);
+			
+			SetCellAndPropagate(sol, iCell, best);
 			// do local pheromone update here
 			parent->LocalPheromoneUpdate(iCell, best.Index());
 		}
@@ -78,14 +81,13 @@ void SudokuAnt::StepSolution()
 			{
 				if (roulette[i] > rouletteVal)
 				{
-					// Time CP operation
-					auto startTime = std::chrono::steady_clock::now();
-					sol.SetCell(iCell, rouletteVals[i]);
-					auto endTime = std::chrono::steady_clock::now();
-					auto duration = std::chrono::duration_cast<std::chrono::duration<double>>(endTime - startTime);
-					float elapsed = (float)duration.count();
-					CP::AddTime(elapsed);
+					// End timing for decision-making
+					auto guessingEndTime = std::chrono::steady_clock::now();
+					auto guessingDuration = std::chrono::duration_cast<std::chrono::duration<double>>(guessingEndTime - guessingStartTime);
+					float guessingElapsed = (float)guessingDuration.count();
+					CP::AddAntGuessingTime(guessingElapsed);
 					
+					SetCellAndPropagate(sol, iCell, rouletteVals[i]);
 					// do local pheromone update here
 					parent->LocalPheromoneUpdate(iCell, rouletteVals[i].Index());
 					break;
