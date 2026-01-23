@@ -14,9 +14,10 @@ import re
 import sys
 import statistics
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 from subprocess import CompletedProcess, run, PIPE
-from typing import Iterable, List, Optional, Sequence, Tuple
+from typing import Iterable, List, Optional, Sequence, Tuple, Dict
 
 
 @dataclass(frozen=True)
@@ -168,12 +169,22 @@ def build_solver_command(
     instance_path: Path,
     repo_root: Path,
     args: argparse.Namespace,
+    algorithm: int,
 ) -> List[str]:
     file_arg = format_instance_argument(instance_path, repo_root)
-    cmd: List[str] = [str(solver_path), "--file", file_arg, "--alg", str(args.alg), "--timeout", str(args.timeout)]
+    cmd: List[str] = [str(solver_path), "--file", file_arg, "--alg", str(algorithm), "--timeout", str(args.timeout)]
 
-    if args.ants is not None:
-        cmd.extend(("--ants", str(args.ants)))
+    # Determine ant count based on algorithm
+    # Algorithms 0 and 2: use --ants-single if specified, else --ants
+    # Algorithms 3 and 4: use --ants-multi if specified, else --ants
+    ant_count = None
+    if algorithm in [0, 2]:
+        ant_count = args.ants_single if args.ants_single is not None else args.ants
+    elif algorithm in [3, 4]:
+        ant_count = args.ants_multi if args.ants_multi is not None else args.ants
+    
+    if ant_count is not None:
+        cmd.extend(("--ants", str(ant_count)))
     if args.subcolonies is not None:
         cmd.extend(("--subcolonies", str(args.subcolonies)))
     if args.threads is not None:
@@ -189,7 +200,7 @@ def build_solver_command(
     if args.evap is not None:
         cmd.extend(("--evap", str(args.evap)))
     # Always add verbose for algorithms 0, 2, 3, and 4 to get iteration count and timing info
-    if args.alg == 0 or args.alg == 2 or args.alg == 3 or args.alg == 4 or args.solver_verbose:
+    if algorithm == 0 or algorithm == 2 or algorithm == 3 or algorithm == 4 or args.solver_verbose:
         cmd.append("--verbose")
     return cmd
 
@@ -241,26 +252,29 @@ def parse_solver_output(stdout: str, stderr: str) -> Tuple[Optional[bool], Optio
             success = (line == "0")
             continue
 
-        solved_match = re.search(r"solved in ([0-9]*\.?[0-9]+)", line)
+        solved_match = re.search(r"[Ss]olved in ([0-9]*\.?[0-9]+)", line)
         if solved_match:
             solve_time = float(solved_match.group(1))
             success = True
             continue
 
-        failed_match = re.search(r"failed in time ([0-9]*\.?[0-9]+)", line)
+        # Match both old format "failed in time X" and new format "Failed to solve in X seconds"
+        failed_match = re.search(r"[Ff]ailed (?:in time |to solve in )([0-9]*\.?[0-9]+)", line)
         if failed_match:
             solve_time = float(failed_match.group(1))
             success = False
             continue
 
-        # Parse iterations (for algorithms 0 and 2)
-        iter_match = re.search(r"iterations:\s*([0-9]+)", line, re.IGNORECASE)
+        # Parse iterations (for algorithms 0, 2, 3, 4)
+        # Match both "iterations:" and "Iterations:"
+        iter_match = re.search(r"[Ii]terations:\s*([0-9]+)", line)
         if iter_match:
             iterations = int(iter_match.group(1))
             continue
 
-        # Parse communication flag for algorithm 2
-        comm_match = re.search(r"communication:\s*(yes|no)", line, re.IGNORECASE)
+        # Parse communication flag for algorithms 2 and 4
+        # Match both "communication:" and "Communication:"
+        comm_match = re.search(r"[Cc]ommunication:\s*(yes|no)", line, re.IGNORECASE)
         if comm_match:
             communication = (comm_match.group(1).lower() == "yes")
             continue
@@ -281,7 +295,7 @@ def parse_solver_output(stdout: str, stderr: str) -> Tuple[Optional[bool], Optio
             cp_calls = int(cp_calls_match.group(1))
             continue
         
-        # Parse new timing fields from verbose output (==Time== section)
+        # Parse new timing fields from verbose output (==Time Breakdown== section)
         # Format: "Initial CP Time: X s (Y%)"
         initial_cp_match = re.search(r"Initial CP Time:\s*([0-9]*\.?[0-9]+)\s+s", line)
         if initial_cp_match:
@@ -289,19 +303,19 @@ def parse_solver_output(stdout: str, stderr: str) -> Tuple[Optional[bool], Optio
             continue
         
         # Format: "Ant CP Time: X s (Y%)"
-        ant_cp_match = re.search(r"Ant CP Time:\s*([0-9]*\.?[0-9]+)\s+s", line)
+        ant_cp_match = re.search(r"Ant (?:CP|Decision) Time:\s*([0-9]*\.?[0-9]+)\s+s", line)
         if ant_cp_match:
             cp_ant = float(ant_cp_match.group(1))
             continue
         
-        # Format: "Ant Guessing Time: X s (Y%)"
-        ant_guessing_match = re.search(r"Ant Guessing Time:\s*([0-9]*\.?[0-9]+)\s+s", line)
-        if ant_guessing_match:
-            ant_guessing_time = float(ant_guessing_match.group(1))
+        # Format: "Ant Decision Time: X s (Y%)" (new name for Ant Guessing Time)
+        ant_decision_match = re.search(r"Ant Decision Time:\s*([0-9]*\.?[0-9]+)\s+s", line)
+        if ant_decision_match:
+            ant_guessing_time = float(ant_decision_match.group(1))
             continue
         
-        # Format: "Coop Game Time: X s (Y%)"
-        coop_game_match = re.search(r"Coop Game Time:\s*([0-9]*\.?[0-9]+)\s+s", line)
+        # Format: "Cooperative Game Time: X s (Y%)" (full name, not abbreviated)
+        coop_game_match = re.search(r"Cooperative Game Time:\s*([0-9]*\.?[0-9]+)\s+s", line)
         if coop_game_match:
             coop_game_time = float(coop_game_match.group(1))
             continue
@@ -312,8 +326,8 @@ def parse_solver_output(stdout: str, stderr: str) -> Tuple[Optional[bool], Optio
             pheromone_fusion_time = float(fusion_match.group(1))
             continue
         
-        # Format: "Public Path Recom Time: X s (Y%)"
-        public_path_match = re.search(r"Public Path Recom Time:\s*([0-9]*\.?[0-9]+)\s+s", line)
+        # Format: "Public Path Recommendation Time: X s (Y%)" (full name)
+        public_path_match = re.search(r"Public Path Recommendation Time:\s*([0-9]*\.?[0-9]+)\s+s", line)
         if public_path_match:
             public_path_time = float(public_path_match.group(1))
             continue
@@ -352,11 +366,57 @@ def parse_solver_output(stdout: str, stderr: str) -> Tuple[Optional[bool], Optio
     return success, solve_time, iterations, communication, cp_initial, cp_ant, cp_calls, ant_guessing_time, coop_game_time, pheromone_fusion_time, public_path_time, communication_time, "\n".join(stdout_lines), "\n".join(stderr_lines)
 
 
-def write_csv(output_path: Path, rows: Sequence[dict]) -> None:
+def get_value_for_alg(alg: int, field: str, value) -> str:
+    """Return 'N/A' if field doesn't apply to algorithm, otherwise return value."""
+    na_rules = {
+        'threads': [0, 1, 3],  # N/A for these algs
+        'numcolonies': [0, 1, 2],
+        'numacs': [0, 1, 2],
+        'coop_game_mean': [0, 1, 2],
+        'pheromone_fusion_mean': [0, 1, 2],
+        'public_path_mean': [0, 1, 2],
+        'communication_time_mean': [0, 1, 3],
+        'with_comm': [0, 1, 3],
+        'without_comm': [0, 1, 3],
+    }
+    if field in na_rules and alg in na_rules[field]:
+        return "N/A"
+    return value if value != "" else "N/A"
+
+
+def write_csv(output_path: Path, rows: Sequence[dict], algorithms_run: List[int]) -> None:
+    """Write results to CSV with algorithm-specific columns."""
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    fieldnames = ["alg", "puzzle_size", "f%", "ants", "subcolonies", "q0", "rho", "bve", "timeout", "success_rate", "time_mean", "time_std", "iter_mean", "with_comm", "without_comm", 
-                  "cp_initial_mean", "cp_ant_mean", "ant_guessing_mean", "coop_game_mean", "pheromone_fusion_mean", "public_path_mean", "communication_time_mean", 
-                  "cp_total_mean", "cp_percentage"]
+    
+    # Build dynamic fieldnames based on algorithms run
+    fieldnames = ["puzzle_size"]
+    for alg in sorted(algorithms_run):
+        fieldnames.extend([
+            f"nAnts_alg{alg}",
+            f"threads_alg{alg}",
+            f"numcolonies_alg{alg}",
+            f"numacs_alg{alg}",
+            f"q0_alg{alg}",
+            f"rho_alg{alg}",
+            f"bve_alg{alg}",
+            f"timeout_alg{alg}",
+            f"success_rate_alg{alg}",
+            f"time_mean_alg{alg}",
+            f"time_std_alg{alg}",
+            f"iter_mean_alg{alg}",
+            f"with_comm_alg{alg}",
+            f"without_comm_alg{alg}",
+            f"cp_initial_mean_alg{alg}",
+            f"cp_ant_mean_alg{alg}",
+            f"ant_guessing_mean_alg{alg}",
+            f"coop_game_mean_alg{alg}",
+            f"pheromone_fusion_mean_alg{alg}",
+            f"public_path_mean_alg{alg}",
+            f"communication_time_mean_alg{alg}",
+            f"cp_total_mean_alg{alg}",
+            f"cp_percentage_alg{alg}",
+        ])
+    
     with output_path.open("w", newline="", encoding="utf-8") as csvfile:
         writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
         writer.writeheader()
@@ -481,10 +541,12 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Run all general Sudoku instances through the solver.")
     parser.add_argument("--instances-root", default=None, help="Folder containing instances (default: runs both instances/general AND instances/logic-solvable)")
     parser.add_argument("--solver", default=None, help="Path to the solver executable (default: auto-detect)")
-    parser.add_argument("--output", default="results/general_metrics.csv", help="Destination CSV file for metrics.")
-    parser.add_argument("--alg", type=int, default=0, help="Solver algorithm (0=ACS, 1=backtracking).")
+    parser.add_argument("--output", default=None, help="Destination CSV file for metrics (default: auto-generated based on puzzle size and timestamp).")
+    parser.add_argument("--alg", type=int, nargs="+", default=[0], help="Solver algorithm(s) (0=ACS, 1=backtracking, 2=parallel, 3=multi-colony, 4=multi-thread multi-colony). Can specify multiple: --alg 0 2 4")
     parser.add_argument("--timeout", type=float, default=120.0, help="Timeout per puzzle in seconds (default: 120).")
-    parser.add_argument("--ants", type=int, default=None, help="Override number of ants (ACS only).")
+    parser.add_argument("--ants", type=int, default=None, help="Override number of ants for all algorithms (default: 10). Can be overridden by --ants-single or --ants-multi.")
+    parser.add_argument("--ants-single", type=int, default=None, help="Number of ants for single-colony algorithms (alg 0 and 2). Overrides --ants for these algorithms.")
+    parser.add_argument("--ants-multi", type=int, default=None, help="Number of ants for multi-colony algorithms (alg 3 and 4). Overrides --ants for these algorithms.")
     parser.add_argument("--subcolonies", type=int, default=None, help="Number of sub-colonies for parallel ACS (alg=2, default: 4).")
     parser.add_argument("--threads", type=int, default=None, help="Number of threads for parallel algorithms (alg=2 or alg=4, default: 4).")
     parser.add_argument("--numcolonies", type=int, default=None, help="Number of colonies for multi-colony algorithms (alg=3 or alg=4, default: numacs+1).")
@@ -557,211 +619,297 @@ def main() -> int:
     elif args.limit is not None:
         metadata_list = metadata_list[: args.limit]
 
-    group_rows: List[dict] = []
-    total_instances = len(metadata_list)
-    current_group_key: Optional[Tuple[str, Optional[int]]] = None
-    group_stats = {"total": 0, "successes": 0, "fails": 0, "times": [], "iterations": [], "with_comm": 0, "without_comm": 0, 
-                   "cp_initial": [], "cp_ant": [], "cp_calls": [], "ant_guessing": [], "coop_game": [], 
-                   "pheromone_fusion": [], "public_path": [], "communication_time": []}
-    overall_total = 0
-    overall_successes = 0
-    overall_times: List[float] = []
-    overall_iterations: List[int] = []
-    overall_with_comm = 0
-    overall_without_comm = 0
-
-    for idx, metadata in enumerate(metadata_list, start=1):
-        # Determine if this is a logic-solvable instance (no fixed_percentage)
-        is_logic_solvable = metadata.fixed_percentage is None
-        num_runs = 100 if is_logic_solvable else 1
-        
-        # Group key for statistics
-        group_key = (metadata.size_label, metadata.fixed_percentage)
-        if current_group_key is None:
-            current_group_key = group_key
-        elif group_key != current_group_key:
-            row = summarize_group(current_group_key[0], current_group_key[1], group_stats, args)
-            if row:
-                group_rows.append(row)
-            group_stats = {"total": 0, "successes": 0, "fails": 0, "times": [], "iterations": [], "with_comm": 0, "without_comm": 0, 
-                           "cp_initial": [], "cp_ant": [], "cp_calls": [], "ant_guessing": [], "coop_game": [], 
-                           "pheromone_fusion": [], "public_path": [], "communication_time": []}
-            current_group_key = group_key
-        
-        # Run the puzzle num_runs times (100 for logic-solvable, 1 for general)
-        for run_num in range(1, num_runs + 1):
-            cmd = build_solver_command(solver_path, metadata.path, repo_root, args)
-            # Show progress for algorithm 2 when verbose is enabled
-            show_progress = args.verbose and args.alg == 2
-            result = run_solver(cmd, repo_root, timeout=args.solver_timeout, show_progress=show_progress)
-
-            success, solve_time, iterations, communication, cp_initial, cp_ant, cp_calls, ant_guessing_time, coop_game_time, pheromone_fusion_time, public_path_time, communication_time, stdout_text, stderr_text = parse_solver_output(result.stdout, result.stderr if result.stderr else "")
-
-            if success is False and (solve_time is None or solve_time == 0.0):
-                solve_time = round(float(args.timeout), 5)
-
-            if args.verbose:
-                status = "OK" if success else "FAIL" if success is not None else "UNKNOWN"
-                
-                # Build detailed timing string
-                timing_str = ""
-                if solve_time is not None:
-                    timing_str = f"{solve_time:.5f}s"
-                    
-                    # Add detailed timing breakdown if available
-                    timing_parts = []
-                    if cp_initial is not None:
-                        cp_init_pct = (cp_initial / solve_time * 100) if solve_time > 0 else 0
-                        timing_parts.append(f"CP_init={cp_initial:.6f}s ({cp_init_pct:.2f}%)")
-                    if cp_ant is not None:
-                        cp_ant_pct = (cp_ant / solve_time * 100) if solve_time > 0 else 0
-                        timing_parts.append(f"CP_ant={cp_ant:.6f}s ({cp_ant_pct:.2f}%)")
-                    if ant_guessing_time is not None:
-                        ant_guess_pct = (ant_guessing_time / solve_time * 100) if solve_time > 0 else 0
-                        timing_parts.append(f"AntGuess={ant_guessing_time:.6f}s ({ant_guess_pct:.2f}%)")
-                    if coop_game_time is not None:
-                        coop_pct = (coop_game_time / solve_time * 100) if solve_time > 0 else 0
-                        timing_parts.append(f"CoopGame={coop_game_time:.6f}s ({coop_pct:.2f}%)")
-                    if pheromone_fusion_time is not None:
-                        fusion_pct = (pheromone_fusion_time / solve_time * 100) if solve_time > 0 else 0
-                        timing_parts.append(f"PherFusion={pheromone_fusion_time:.6f}s ({fusion_pct:.2f}%)")
-                    if public_path_time is not None:
-                        public_pct = (public_path_time / solve_time * 100) if solve_time > 0 else 0
-                        timing_parts.append(f"PublicPath={public_path_time:.6f}s ({public_pct:.2f}%)")
-                    if communication_time is not None:
-                        comm_pct = (communication_time / solve_time * 100) if solve_time > 0 else 0
-                        timing_parts.append(f"CommTime={communication_time:.6f}s ({comm_pct:.2f}%)")
-                    
-                    if timing_parts:
-                        timing_str = ", ".join(timing_parts) + f", Total={solve_time:.5f}s"
-                        if iterations is not None:
-                            timing_str += f", {iterations} iter"
-                    elif iterations is not None:
-                        timing_str += f", {iterations} iter"
-                
-                if is_logic_solvable:
-                    # For logic-solvable, show run number
-                    if timing_str:
-                        print(f"[run {run_num}/{num_runs}] {metadata.relative_path} -> {status} ({timing_str})")
-                    else:
-                        print(f"[run {run_num}/{num_runs}] {metadata.relative_path} -> {status}")
-                else:
-                    # For general instances, show normal format
-                    if timing_str:
-                        print(f"[{idx}/{total_instances}] {metadata.relative_path} -> {status} ({timing_str})")
-                    else:
-                        print(f"[{idx}/{total_instances}] {metadata.relative_path} -> {status}")
-
-            group_stats["total"] += 1
-            if success:
-                group_stats["successes"] += 1
-            else:
-                group_stats["fails"] += 1
-            # Only include times and iterations from successful runs in statistics
-            if success and solve_time is not None:
-                group_stats["times"].append(solve_time)
-                # Track iterations for all algorithms that support it (0, 2, 3, 4)
-                if iterations is not None and (args.alg == 0 or args.alg == 2 or args.alg == 3 or args.alg == 4):
-                    group_stats["iterations"].append(iterations)
-                # Track communication for algorithms 2 and 4
-                if communication is not None and (args.alg == 2 or args.alg == 4):
-                    if communication:
-                        group_stats["with_comm"] += 1
-                    else:
-                        group_stats["without_comm"] += 1
-                # Track CP timing statistics
-                if cp_initial is not None:
-                    if "cp_initial" not in group_stats:
-                        group_stats["cp_initial"] = []
-                    group_stats["cp_initial"].append(cp_initial)
-                if cp_ant is not None:
-                    if "cp_ant" not in group_stats:
-                        group_stats["cp_ant"] = []
-                    group_stats["cp_ant"].append(cp_ant)
-                if cp_calls is not None:
-                    if "cp_calls" not in group_stats:
-                        group_stats["cp_calls"] = []
-                    group_stats["cp_calls"].append(cp_calls)
-                # Track new timing statistics
-                if ant_guessing_time is not None:
-                    if "ant_guessing" not in group_stats:
-                        group_stats["ant_guessing"] = []
-                    group_stats["ant_guessing"].append(ant_guessing_time)
-                if coop_game_time is not None:
-                    if "coop_game" not in group_stats:
-                        group_stats["coop_game"] = []
-                    group_stats["coop_game"].append(coop_game_time)
-                if pheromone_fusion_time is not None:
-                    if "pheromone_fusion" not in group_stats:
-                        group_stats["pheromone_fusion"] = []
-                    group_stats["pheromone_fusion"].append(pheromone_fusion_time)
-                if public_path_time is not None:
-                    if "public_path" not in group_stats:
-                        group_stats["public_path"] = []
-                    group_stats["public_path"].append(public_path_time)
-                if communication_time is not None:
-                    if "communication_time" not in group_stats:
-                        group_stats["communication_time"] = []
-                    group_stats["communication_time"].append(communication_time)
-
-            overall_total += 1
-            if success:
-                overall_successes += 1
-            # Only include times and iterations from successful runs in statistics
-            if success and solve_time is not None:
-                overall_times.append(solve_time)
-                # Track iterations for algorithms 0, 2, 3, and 4
-                if iterations is not None and (args.alg == 0 or args.alg == 2 or args.alg == 3 or args.alg == 4):
-                    overall_iterations.append(iterations)
-                # Track communication for algorithms 2 and 4
-                if communication is not None and (args.alg == 2 or args.alg == 4):
-                    if communication:
-                        overall_with_comm += 1
-                    else:
-                        overall_without_comm += 1
-
-    output_path = (repo_root / args.output).resolve()
-    if current_group_key is not None:
-        row = summarize_group(current_group_key[0], current_group_key[1], group_stats, args)
-        if row:
-            group_rows.append(row)
-
-    write_csv(output_path, group_rows)
-
-    total, successes, avg_time = compute_summary(overall_total, overall_successes, overall_times)
-    failures = total - successes
-    avg_iterations = round(sum(overall_iterations) / len(overall_iterations), 2) if overall_iterations else None
-
-    # Get actual ant count (default is 10)
-    actual_ants = args.ants if args.ants is not None else 10
+    # Ensure args.alg is a list
+    algorithms = args.alg if isinstance(args.alg, list) else [args.alg]
     
-    # Get actual subcolonies count (default is 4)
-    actual_subcolonies = args.subcolonies if args.subcolonies is not None else 4
+    # Data structure: results_matrix[puzzle_key][algorithm] = stats_dict
+    results_matrix: Dict[str, Dict[int, dict]] = {}
+    total_instances = len(metadata_list)
+    
+    # Overall statistics per algorithm
+    overall_stats_per_alg: Dict[int, dict] = {}
+    for alg in algorithms:
+        overall_stats_per_alg[alg] = {
+            "total": 0, "successes": 0, "times": [], "iterations": [],
+            "with_comm": 0, "without_comm": 0
+        }
 
+    # Run each algorithm for each instance
+    for algorithm in algorithms:
+        print(f"\n{'='*60}")
+        print(f"Running Algorithm {algorithm}")
+        print(f"{'='*60}\n")
+        
+        for idx, metadata in enumerate(metadata_list, start=1):
+            # Determine if this is a logic-solvable instance (no fixed_percentage)
+            is_logic_solvable = metadata.fixed_percentage is None
+            num_runs = 100 if is_logic_solvable else 1
+            
+            # Puzzle key for results matrix
+            puzzle_key = metadata.size_label
+            if puzzle_key not in results_matrix:
+                results_matrix[puzzle_key] = {}
+            
+            # Initialize stats for this algorithm if not exists
+            if algorithm not in results_matrix[puzzle_key]:
+                results_matrix[puzzle_key][algorithm] = {
+                    "total": 0, "successes": 0, "fails": 0, "times": [], "iterations": [],
+                    "with_comm": 0, "without_comm": 0,
+                    "cp_initial": [], "cp_ant": [], "cp_calls": [],
+                    "ant_guessing": [], "coop_game": [], "pheromone_fusion": [],
+                    "public_path": [], "communication_time": []
+                }
+            
+            stats = results_matrix[puzzle_key][algorithm]
+            
+            # Run the puzzle num_runs times (100 for logic-solvable, 1 for general)
+            for run_num in range(1, num_runs + 1):
+                cmd = build_solver_command(solver_path, metadata.path, repo_root, args, algorithm)
+                # Show progress for algorithm 2 when verbose is enabled
+                show_progress = args.verbose and algorithm == 2
+                result = run_solver(cmd, repo_root, timeout=args.solver_timeout, show_progress=show_progress)
+
+                success, solve_time, iterations, communication, cp_initial, cp_ant, cp_calls, ant_guessing_time, coop_game_time, pheromone_fusion_time, public_path_time, communication_time, stdout_text, stderr_text = parse_solver_output(result.stdout, result.stderr if result.stderr else "")
+
+                if success is False and (solve_time is None or solve_time == 0.0):
+                    solve_time = round(float(args.timeout), 5)
+
+                if args.verbose:
+                    status = "OK" if success else "FAIL" if success is not None else "UNKNOWN"
+                    
+                    # Build detailed timing string
+                    timing_str = ""
+                    if solve_time is not None:
+                        timing_str = f"{solve_time:.5f}s"
+                        
+                        # Add detailed timing breakdown if available
+                        timing_parts = []
+                        if cp_initial is not None:
+                            cp_init_pct = (cp_initial / solve_time * 100) if solve_time > 0 else 0
+                            timing_parts.append(f"CP_init={cp_initial:.6f}s ({cp_init_pct:.2f}%)")
+                        if cp_ant is not None:
+                            cp_ant_pct = (cp_ant / solve_time * 100) if solve_time > 0 else 0
+                            timing_parts.append(f"CP_ant={cp_ant:.6f}s ({cp_ant_pct:.2f}%)")
+                        if ant_guessing_time is not None:
+                            ant_guess_pct = (ant_guessing_time / solve_time * 100) if solve_time > 0 else 0
+                            timing_parts.append(f"AntGuess={ant_guessing_time:.6f}s ({ant_guess_pct:.2f}%)")
+                        if coop_game_time is not None:
+                            coop_pct = (coop_game_time / solve_time * 100) if solve_time > 0 else 0
+                            timing_parts.append(f"CoopGame={coop_game_time:.6f}s ({coop_pct:.2f}%)")
+                        if pheromone_fusion_time is not None:
+                            fusion_pct = (pheromone_fusion_time / solve_time * 100) if solve_time > 0 else 0
+                            timing_parts.append(f"PherFusion={pheromone_fusion_time:.6f}s ({fusion_pct:.2f}%)")
+                        if public_path_time is not None:
+                            public_pct = (public_path_time / solve_time * 100) if solve_time > 0 else 0
+                            timing_parts.append(f"PublicPath={public_path_time:.6f}s ({public_pct:.2f}%)")
+                        if communication_time is not None:
+                            comm_pct = (communication_time / solve_time * 100) if solve_time > 0 else 0
+                            timing_parts.append(f"CommTime={communication_time:.6f}s ({comm_pct:.2f}%)")
+                        
+                        if timing_parts:
+                            timing_str = ", ".join(timing_parts) + f", Total={solve_time:.5f}s"
+                            if iterations is not None:
+                                timing_str += f", {iterations} iter"
+                        elif iterations is not None:
+                            timing_str += f", {iterations} iter"
+                    
+                    if is_logic_solvable:
+                        # For logic-solvable, show run number
+                        if timing_str:
+                            print(f"[alg {algorithm}] [run {run_num}/{num_runs}] {metadata.relative_path} -> {status} ({timing_str})")
+                        else:
+                            print(f"[alg {algorithm}] [run {run_num}/{num_runs}] {metadata.relative_path} -> {status}")
+                    else:
+                        # For general instances, show normal format
+                        if timing_str:
+                            print(f"[alg {algorithm}] [{idx}/{total_instances}] {metadata.relative_path} -> {status} ({timing_str})")
+                        else:
+                            print(f"[alg {algorithm}] [{idx}/{total_instances}] {metadata.relative_path} -> {status}")
+
+                stats["total"] += 1
+                if success:
+                    stats["successes"] += 1
+                else:
+                    stats["fails"] += 1
+                
+                # Only include times and iterations from successful runs in statistics
+                if success and solve_time is not None:
+                    stats["times"].append(solve_time)
+                    # Track iterations for all algorithms that support it (0, 2, 3, 4)
+                    if iterations is not None and (algorithm == 0 or algorithm == 2 or algorithm == 3 or algorithm == 4):
+                        stats["iterations"].append(iterations)
+                    # Track communication for algorithms 2 and 4
+                    if communication is not None and (algorithm == 2 or algorithm == 4):
+                        if communication:
+                            stats["with_comm"] += 1
+                        else:
+                            stats["without_comm"] += 1
+                    # Track CP timing statistics
+                    if cp_initial is not None:
+                        stats["cp_initial"].append(cp_initial)
+                    if cp_ant is not None:
+                        stats["cp_ant"].append(cp_ant)
+                    if cp_calls is not None:
+                        stats["cp_calls"].append(cp_calls)
+                    # Track new timing statistics
+                    if ant_guessing_time is not None:
+                        stats["ant_guessing"].append(ant_guessing_time)
+                    if coop_game_time is not None:
+                        stats["coop_game"].append(coop_game_time)
+                    if pheromone_fusion_time is not None:
+                        stats["pheromone_fusion"].append(pheromone_fusion_time)
+                    if public_path_time is not None:
+                        stats["public_path"].append(public_path_time)
+                    if communication_time is not None:
+                        stats["communication_time"].append(communication_time)
+
+                # Update overall stats
+                overall_stats_per_alg[algorithm]["total"] += 1
+                if success:
+                    overall_stats_per_alg[algorithm]["successes"] += 1
+                if success and solve_time is not None:
+                    overall_stats_per_alg[algorithm]["times"].append(solve_time)
+                    if iterations is not None and (algorithm == 0 or algorithm == 2 or algorithm == 3 or algorithm == 4):
+                        overall_stats_per_alg[algorithm]["iterations"].append(iterations)
+                    if communication is not None and (algorithm == 2 or algorithm == 4):
+                        if communication:
+                            overall_stats_per_alg[algorithm]["with_comm"] += 1
+                        else:
+                            overall_stats_per_alg[algorithm]["without_comm"] += 1
+
+    # Generate output filename
+    if args.output is not None:
+        output_path = (repo_root / args.output).resolve()
+    else:
+        # Auto-generate filename based on puzzle sizes and timestamp
+        puzzle_sizes = sorted(set(m.size_label for m in metadata_list))
+        size_str = "_".join(puzzle_sizes)
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"Run_{size_str}_{timestamp}.csv"
+        output_path = (repo_root / "results" / filename).resolve()
+    
+    # Convert results_matrix to CSV rows (wide format)
+    csv_rows = []
+    for puzzle_size in sorted(results_matrix.keys()):
+        row = {"puzzle_size": puzzle_size}
+        for alg in sorted(algorithms):
+            if alg in results_matrix[puzzle_size]:
+                stats = results_matrix[puzzle_size][alg]
+                
+                # Get actual parameter values based on algorithm
+                # Ant count depends on algorithm type
+                if alg in [0, 2]:
+                    # Single-colony algorithms: use --ants-single, fallback to --ants, default to 10
+                    actual_ants = args.ants_single if args.ants_single is not None else (args.ants if args.ants is not None else 10)
+                elif alg in [3, 4]:
+                    # Multi-colony algorithms: use --ants-multi, fallback to --ants, default to 10
+                    actual_ants = args.ants_multi if args.ants_multi is not None else (args.ants if args.ants is not None else 10)
+                else:
+                    actual_ants = args.ants if args.ants is not None else 10
+                
+                actual_threads = args.threads if args.threads is not None else 4
+                actual_numcolonies = args.numcolonies if args.numcolonies is not None else (args.numacs + 1 if args.numacs is not None else 4)
+                actual_numacs = args.numacs if args.numacs is not None else 3
+                
+                # Calculate statistics
+                success_rate = (stats["successes"] / stats["total"] * 100) if stats["total"] > 0 else 0
+                time_mean = statistics.mean(stats["times"]) if stats["times"] else 0
+                time_std = statistics.stdev(stats["times"]) if len(stats["times"]) > 1 else 0
+                iter_mean = statistics.mean(stats["iterations"]) if stats["iterations"] else 0
+                cp_initial_mean = statistics.mean(stats["cp_initial"]) if stats["cp_initial"] else 0
+                cp_ant_mean = statistics.mean(stats["cp_ant"]) if stats["cp_ant"] else 0
+                ant_guessing_mean = statistics.mean(stats["ant_guessing"]) if stats["ant_guessing"] else 0
+                coop_game_mean = statistics.mean(stats["coop_game"]) if stats["coop_game"] else 0
+                pheromone_fusion_mean = statistics.mean(stats["pheromone_fusion"]) if stats["pheromone_fusion"] else 0
+                public_path_mean = statistics.mean(stats["public_path"]) if stats["public_path"] else 0
+                communication_time_mean = statistics.mean(stats["communication_time"]) if stats["communication_time"] else 0
+                cp_total_mean = cp_initial_mean + cp_ant_mean
+                cp_percentage = (cp_total_mean / time_mean * 100) if time_mean > 0 else 0
+                
+                # Add algorithm-specific columns with N/A handling
+                row[f"nAnts_alg{alg}"] = get_value_for_alg(alg, "nAnts", actual_ants)
+                row[f"threads_alg{alg}"] = get_value_for_alg(alg, "threads", actual_threads)
+                row[f"numcolonies_alg{alg}"] = get_value_for_alg(alg, "numcolonies", actual_numcolonies)
+                row[f"numacs_alg{alg}"] = get_value_for_alg(alg, "numacs", actual_numacs)
+                row[f"q0_alg{alg}"] = args.q0
+                row[f"rho_alg{alg}"] = args.rho
+                row[f"bve_alg{alg}"] = args.evap
+                row[f"timeout_alg{alg}"] = args.timeout
+                row[f"success_rate_alg{alg}"] = f"{success_rate:.2f}"
+                row[f"time_mean_alg{alg}"] = f"{time_mean:.6f}"
+                row[f"time_std_alg{alg}"] = f"{time_std:.6f}"
+                row[f"iter_mean_alg{alg}"] = f"{iter_mean:.2f}" if iter_mean > 0 else "N/A"
+                row[f"with_comm_alg{alg}"] = get_value_for_alg(alg, "with_comm", stats["with_comm"])
+                row[f"without_comm_alg{alg}"] = get_value_for_alg(alg, "without_comm", stats["without_comm"])
+                row[f"cp_initial_mean_alg{alg}"] = f"{cp_initial_mean:.6f}"
+                row[f"cp_ant_mean_alg{alg}"] = f"{cp_ant_mean:.6f}"
+                row[f"ant_guessing_mean_alg{alg}"] = f"{ant_guessing_mean:.6f}"
+                row[f"coop_game_mean_alg{alg}"] = get_value_for_alg(alg, "coop_game_mean", f"{coop_game_mean:.6f}")
+                row[f"pheromone_fusion_mean_alg{alg}"] = get_value_for_alg(alg, "pheromone_fusion_mean", f"{pheromone_fusion_mean:.6f}")
+                row[f"public_path_mean_alg{alg}"] = get_value_for_alg(alg, "public_path_mean", f"{public_path_mean:.6f}")
+                row[f"communication_time_mean_alg{alg}"] = get_value_for_alg(alg, "communication_time_mean", f"{communication_time_mean:.6f}")
+                row[f"cp_total_mean_alg{alg}"] = f"{cp_total_mean:.6f}"
+                row[f"cp_percentage_alg{alg}"] = f"{cp_percentage:.2f}"
+        
+        csv_rows.append(row)
+    
+    write_csv(output_path, csv_rows, algorithms)
+
+    # Print summary per algorithm
+    print("\n" + "="*60)
     print("===== Summary =====")
     print(f"Solver binary   : {solver_path}")
     print(f"Instances folder: {instances_root_display}")
     print(f"Output CSV      : {output_path}")
-    print(f"Algorithm       : {args.alg}")
-    print(f"Ants            : {actual_ants}")
-    if args.alg == 2:
-        print(f"Sub-colonies    : {actual_subcolonies}")
-    print(f"q0              : {args.q0}")
-    print(f"rho             : {args.rho}")
-    print(f"bve             : {args.evap}")
-    print(f"Timeout         : {args.timeout}s")
-    print(f"Total puzzles   : {total}")
-    print(f"Succeeded       : {successes}")
-    print(f"Failed          : {failures}")
-    if total:
-        print(f"Average time    : {avg_time:.5f} s")
-        if avg_iterations is not None:
-            print(f"Average iters   : {avg_iterations:.2f}")
-        if args.alg == 2 and (overall_with_comm > 0 or overall_without_comm > 0):
-            print(f"With comm       : {overall_with_comm}/{overall_with_comm + overall_without_comm} ({(overall_with_comm / (overall_with_comm + overall_without_comm) * 100.0):.1f}%)")
-    else:
-        print(f"Average time    : n/a")
     
+    for alg in algorithms:
+        print(f"\n--- Algorithm {alg} ---")
+        overall = overall_stats_per_alg[alg]
+        total = overall["total"]
+        successes = overall["successes"]
+        failures = total - successes
+        avg_time = statistics.mean(overall["times"]) if overall["times"] else 0
+        avg_iterations = statistics.mean(overall["iterations"]) if overall["iterations"] else None
+        
+        # Get actual parameter values based on algorithm
+        # Ant count depends on algorithm type
+        if alg in [0, 2]:
+            # Single-colony algorithms: use --ants-single, fallback to --ants, default to 10
+            actual_ants = args.ants_single if args.ants_single is not None else (args.ants if args.ants is not None else 10)
+        elif alg in [3, 4]:
+            # Multi-colony algorithms: use --ants-multi, fallback to --ants, default to 10
+            actual_ants = args.ants_multi if args.ants_multi is not None else (args.ants if args.ants is not None else 10)
+        else:
+            actual_ants = args.ants if args.ants is not None else 10
+        
+        actual_threads = args.threads if args.threads is not None else 4
+        actual_numcolonies = args.numcolonies if args.numcolonies is not None else (args.numacs + 1 if args.numacs is not None else 4)
+        actual_numacs = args.numacs if args.numacs is not None else 3
+        
+        print(f"Ants            : {actual_ants}")
+        if alg == 2 or alg == 4:
+            print(f"Threads         : {actual_threads}")
+        if alg == 3 or alg == 4:
+            print(f"Num Colonies    : {actual_numcolonies}")
+            print(f"Num ACS         : {actual_numacs}")
+        print(f"q0              : {args.q0}")
+        print(f"rho             : {args.rho}")
+        print(f"bve             : {args.evap}")
+        print(f"Timeout         : {args.timeout}s")
+        print(f"Total puzzles   : {total}")
+        print(f"Succeeded       : {successes}")
+        print(f"Failed          : {failures}")
+        if total:
+            print(f"Average time    : {avg_time:.5f} s")
+            if avg_iterations is not None:
+                print(f"Average iters   : {avg_iterations:.2f}")
+            if (alg == 2 or alg == 4) and (overall["with_comm"] > 0 or overall["without_comm"] > 0):
+                total_comm = overall["with_comm"] + overall["without_comm"]
+                print(f"With comm       : {overall['with_comm']}/{total_comm} ({(overall['with_comm'] / total_comm * 100.0):.1f}%)")
+        else:
+            print(f"Average time    : n/a")
+    
+    print("="*60)
     sys.stdout.flush()  # Force immediate output to prevent timing issues
 
     return 0

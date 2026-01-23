@@ -2,19 +2,42 @@
  * SUDOKU SOLVER - Main Entry Point
  * 
  * This is the main executable for the Sudoku solver. It provides a
- * command-line interface for running different solving algorithms.
+ * command-line interface for running different solving algorithms with
+ * comprehensive timing instrumentation.
  * 
  * Execution Flow:
- * 1. Read puzzle from file or command line
- * 2. Initialize board (triggers constraint propagation)
- * 3. Select and configure algorithm
- * 4. Run solver
- * 5. Validate and output results
+ * 1. Parse command-line arguments
+ * 2. Load puzzle from file or command line
+ * 3. Initialize board (triggers initial constraint propagation)
+ * 4. Select and configure algorithm
+ * 5. Run solver with timing instrumentation
+ * 6. Extract algorithm-specific statistics
+ * 7. Validate solution
+ * 8. Output results (compact, verbose, or JSON format)
  * 
  * Supported Algorithms:
  * - Algorithm 0: Single-threaded Ant Colony System (ACS)
  * - Algorithm 1: Backtracking search
- * - Algorithm 2: Parallel ACS with multiple sub-colonies
+ * - Algorithm 2: Parallel ACS with multiple sub-colonies (multithreaded)
+ * - Algorithm 3: Multi-Colony Ant System (single-threaded)
+ * - Algorithm 4: MultiThread Multi-Colony Ant System (parallel multi-colony)
+ * 
+ * Output Formats:
+ * - Compact: For batch processing (success flag + time)
+ * - Verbose: Detailed solution, timing breakdown, and statistics
+ * - JSON: Machine-readable format for integration
+ * 
+ * Timing Components Tracked:
+ * - Initial constraint propagation time
+ * - Ant constraint propagation time (during solution construction)
+ * - Ant decision-making time (greedy vs weighted selection)
+ * - Cooperative game theory time (algorithms 3 & 4)
+ * - Pheromone fusion time (algorithms 3 & 4)
+ * - Public path recommendation time (algorithms 3 & 4)
+ * - Thread communication time (algorithms 2 & 4)
+ * 
+ * @see TIMING_DOCUMENTATION.md for detailed timing explanations
+ * @see RUN_GENERAL_GUIDE.md for batch execution guide
  ******************************************************************************/
 
 #include "sudokuantsystem.h"
@@ -31,9 +54,64 @@
 #include <string>
 #include <iomanip>
 #include <sstream>
+#include <memory>
 using namespace std;
 
-static string JsonEscape(const string &input)
+// ============================================================================
+// CONSTANTS
+// ============================================================================
+
+namespace PuzzleDefaults
+{
+	constexpr int CELL_COUNT_9X9 = 81;
+	constexpr int CELL_COUNT_16X16 = 256;
+	constexpr int CELL_COUNT_25X25 = 625;
+	
+	constexpr int TIMEOUT_9X9 = 5;
+	constexpr int TIMEOUT_16X16 = 20;
+	constexpr int TIMEOUT_25X25 = 120;
+	constexpr int TIMEOUT_DEFAULT = 120;
+	
+	constexpr int ORDER_9X9 = 3;
+	constexpr int ORDER_16X16 = 4;
+	constexpr int DECIMAL_THRESHOLD = 11;
+}
+
+// ============================================================================
+// HELPER STRUCTURES
+// ============================================================================
+
+/**
+ * Timing information extracted from the winning thread for parallel algorithms
+ */
+struct WinningThreadTimings
+{
+	int threadId = -1;
+	float cpTime = 0.0f;
+	float antDecisionTime = 0.0f;
+	float communicationTime = 0.0f;
+	float cooperativeGameTime = 0.0f;
+	float pheromoneFusionTime = 0.0f;
+	float publicPathRecommendationTime = 0.0f;
+};
+
+/**
+ * General solver statistics (iterations, communication status)
+ */
+struct SolverStatistics
+{
+	int iterations = 0;
+	bool communicationOccurred = false;
+};
+
+// ============================================================================
+// HELPER FUNCTIONS
+// ============================================================================
+
+/**
+ * Escape special characters in a string for JSON output
+ */
+static string jsonEscape(const string &input)
 {
 	ostringstream out;
 	for (char c : input)
@@ -51,64 +129,189 @@ static string JsonEscape(const string &input)
 	return out.str();
 }
 
+/**
+ * Print a timing line with consistent formatting
+ * @param label The label for the timing component
+ * @param timeValue The time value in seconds
+ * @param percentage The percentage of total time
+ */
+static void printTimingLine(const string& label, float timeValue, float percentage)
+{
+	cout << fixed << setprecision(6);
+	cout << label << ": " << timeValue << " s (" 
+	     << setprecision(2) << percentage << "%)" << endl;
+}
+
+/**
+ * Extract timing information from the winning thread for Parallel ACS (Algorithm 2)
+ * @param solver Pointer to the parallel solver
+ * @return Timing information from the sub-colony with the best solution
+ */
+static WinningThreadTimings extractParallelACSTimings(ParallelSudokuAntSystem* solver)
+{
+	WinningThreadTimings timings;
+	const auto& subColonies = solver->GetSubColonies();
+	int bestScore = 0;
+	
+	for (size_t i = 0; i < subColonies.size(); i++)
+	{
+		int score = subColonies[i]->GetBestSolScore();
+		if (score > bestScore)
+		{
+			bestScore = score;
+			timings.threadId = static_cast<int>(i);
+			timings.cpTime = subColonies[i]->GetCPTime();
+			timings.antDecisionTime = subColonies[i]->GetAntGuessingTime();
+			timings.communicationTime = subColonies[i]->GetCommunicationTime();
+		}
+	}
+	return timings;
+}
+
+/**
+ * Extract timing information from the winning thread for Multi-Thread Multi-Colony (Algorithm 4)
+ * @param solver Pointer to the multi-thread multi-colony solver
+ * @return Timing information from the thread with the best solution
+ */
+static WinningThreadTimings extractMultiThreadMultiColonyTimings(MultiThreadMultiColonyAntSystem* solver)
+{
+	WinningThreadTimings timings;
+	const auto& threads = solver->GetThreads();
+	int bestScore = 0;
+	
+	for (size_t i = 0; i < threads.size(); i++)
+	{
+		int score = threads[i]->GetBestSolScore();
+		if (score > bestScore)
+		{
+			bestScore = score;
+			timings.threadId = static_cast<int>(i);
+			timings.cpTime = threads[i]->GetCPTime();
+			timings.antDecisionTime = threads[i]->GetAntGuessingTime();
+			timings.communicationTime = threads[i]->GetCommunicationTime();
+			timings.cooperativeGameTime = threads[i]->GetCooperativeGameTime();
+			timings.pheromoneFusionTime = threads[i]->GetPheromoneFusionTime();
+			timings.publicPathRecommendationTime = threads[i]->GetPublicPathRecommendationTime();
+		}
+	}
+	return timings;
+}
+
+/**
+ * Extract solver statistics (iterations, communication status) based on algorithm
+ * @param solver Pointer to the solver
+ * @param algorithmId The algorithm identifier (0-4)
+ * @return Statistics extracted from the solver
+ */
+static SolverStatistics extractSolverStatistics(SudokuSolver* solver, int algorithmId)
+{
+	SolverStatistics stats;
+	
+	switch (algorithmId)
+	{
+		case 0:
+			if (auto* antSolver = dynamic_cast<SudokuAntSystem*>(solver))
+				stats.iterations = antSolver->GetIterationsCompleted();
+			break;
+		
+		case 2:
+			if (auto* parallelSolver = dynamic_cast<ParallelSudokuAntSystem*>(solver))
+			{
+				stats.iterations = parallelSolver->GetIterationsCompleted();
+				stats.communicationOccurred = parallelSolver->GetCommunicationOccurred();
+			}
+			break;
+		
+		case 3:
+			if (auto* multiColonySolver = dynamic_cast<MultiColonyAntSystem*>(solver))
+				stats.iterations = multiColonySolver->GetIterationCount();
+			break;
+		
+		case 4:
+			if (auto* multiThreadSolver = dynamic_cast<MultiThreadMultiColonyAntSystem*>(solver))
+			{
+				stats.iterations = multiThreadSolver->GetIterationsCompleted();
+				stats.communicationOccurred = multiThreadSolver->GetCommunicationOccurred();
+			}
+			break;
+	}
+	
+	return stats;
+}
+
 // ============================================================================
 // SECTION 1: PUZZLE FILE READER
 // ============================================================================
 
 /*******************************************************************************
- * ReadFile - Read a Sudoku puzzle from a text file
+ * readPuzzleFile - Read a Sudoku puzzle from a text file
  * 
  * File format:
  *   Line 1: order (e.g., 3 for 9x9, 4 for 16x16, 5 for 25x25)
- *   Line 2: ignored value
+ *   Line 2: dummy value (ignored)
  *   Remaining: cell values (one per line)
  *     -1 represents empty cell (.)
  *     1-9 (for 9x9), 1-16 (for 16x16), etc. represent fixed values
  * 
- * Parameters:
- *   fileName - Path to the puzzle file
+ * Character encoding:
+ *   9x9 (order=3): '1'-'9' for values 1-9
+ *   16x16 (order=4): '0'-'9' for values 1-10, 'a'-'f' for values 11-16
+ *   25x25+ (order>=5): 'a'-'y' for values 1-25
  * 
- * Returns: Puzzle string representation (e.g., "4.5...2.1...")
+ * @param fileName Path to the puzzle file
+ * @return Puzzle string representation (e.g., "4.5...2.1...") or empty string on error
  ******************************************************************************/
-string ReadFile( string fileName )
+string readPuzzleFile(const string& fileName)
 {
-	char *puzString;
-	ifstream inFile;
-	inFile.open(fileName);
-	if ( inFile.is_open() )
+	ifstream inFile(fileName);
+	if (!inFile.is_open())
 	{
-		int order, idum;
-		inFile >> order;
-		int numCells = order*order*order*order;
-		inFile >> idum;
-		puzString = new char[numCells+1];
-		for (int i = 0; i < numCells; i++)
-		{
-			int val;
-			inFile >> val;
-			if (val == -1)
-				puzString[i] = '.';
-			else if (order == 3)
-				puzString[i] = '1' + (val - 1);
-			else if (order == 4)
-				if (val < 11)
-					puzString[i] = '0' + val - 1;
-				else
-					puzString[i] = 'a' + val - 11;
-			else
-				puzString[i] = 'a' + val - 1;
-		}
-		puzString[numCells] = 0;
-		inFile.close();
-		string retVal = string(puzString);
-		delete [] puzString;
-		return retVal;
-	}
-	else
-	{
-		cerr << "could not open file: " << fileName << endl;
+		cerr << "Error: Could not open file: " << fileName << endl;
 		return string();
 	}
+	
+	int order, dummyValue;
+	inFile >> order;
+	int numCells = order * order * order * order;
+	inFile >> dummyValue;  // Read and ignore dummy value
+	
+	char* puzString = new char[numCells + 1];
+	
+	for (int i = 0; i < numCells; i++)
+	{
+		int val;
+		inFile >> val;
+		
+		if (val == -1)
+		{
+			puzString[i] = '.';
+		}
+		else if (order == PuzzleDefaults::ORDER_9X9)
+		{
+			// 9x9: values 1-9 encoded as '1'-'9'
+			puzString[i] = '1' + (val - 1);
+		}
+		else if (order == PuzzleDefaults::ORDER_16X16)
+		{
+			// 16x16: values 1-10 as '0'-'9', values 11-16 as 'a'-'f'
+			if (val < PuzzleDefaults::DECIMAL_THRESHOLD)
+				puzString[i] = '0' + val - 1;
+			else
+				puzString[i] = 'a' + val - 11;
+		}
+		else
+		{
+			// 25x25+: all values encoded as 'a'-'y'
+			puzString[i] = 'a' + val - 1;
+		}
+	}
+	
+	puzString[numCells] = '\0';
+	inFile.close();
+	
+	string retVal = string(puzString);
+	delete[] puzString;
+	return retVal;
 }
 
 // ============================================================================
@@ -125,108 +328,148 @@ string ReadFile( string fileName )
  * 4. Configure and run selected algorithm
  * 5. Validate and output results
  ******************************************************************************/
-int main( int argc, char *argv[] )
+int main(int argc, char* argv[])
 {
 	// ========================================================================
 	// SECTION 2.1: COMMAND-LINE ARGUMENT PARSING
 	// ========================================================================
 	
-	Arguments a( argc, argv );
+	Arguments args(argc, argv);
 	string puzzleString;
 	
 	// Option 1: Generate blank puzzle of specified order
-	if ( a.GetArg("blank", 0) && a.GetArg("order", 0))
+	if (args.GetArg("blank", 0) && args.GetArg("order", 0))
 	{
-		int order = a.GetArg("order", 0);
-		if ( order != 0 )
-			puzzleString = string(order*order*order*order,'.');
+		int order = args.GetArg("order", 0);
+		if (order != 0)
+			puzzleString = string(order * order * order * order, '.');
 	}
 	// Option 2: Read puzzle from command line or file
 	else 
 	{
 		// Try reading from command-line argument
-		puzzleString = a.GetArg(string("puzzle"),string());
-		if ( puzzleString.length() == 0 )
+		puzzleString = args.GetArg(string("puzzle"), string());
+		if (puzzleString.length() == 0)
 		{
 			// Try reading from file
-			string fileName = a.GetArg(string("file"),string());
-			puzzleString = ReadFile(fileName);
+			string fileName = args.GetArg(string("file"), string());
+			puzzleString = readPuzzleFile(fileName);
 		}
-		if ( puzzleString.length() == 0 )
+		if (puzzleString.length() == 0)
 		{
-			cerr << "no puzzle specified" << endl;
-			exit(0);
+			cerr << "Error: No puzzle specified. Use --file or --puzzle argument." << endl;
+			return 1;
 		}
 	}
 	
-	// Reset CP timing before starting
+	// Reset constraint propagation timing statistics before starting the solve.
+	// This ensures we only measure CP time for this specific puzzle instance.
 	ResetCPTiming();
 	
-	// Initialize board (triggers constraint propagation)
+	// Initialize board from puzzle string. This triggers initial constraint
+	// propagation which reduces the search space before the solver runs.
+	// Initial CP time is tracked separately from ant CP time.
 	Board board(puzzleString);
 
-	// Parse algorithm parameters
-	int algorithm = a.GetArg("alg", 0);
-	int timeOutSecs = a.GetArg("timeout", -1);
-	int nAnts = a.GetArg("ants", 10);
-	int nThreads = a.GetArg("threads", 4);
-	float q0 = a.GetArg("q0", 0.9f);
-	float rho = a.GetArg("rho", 0.9f);  
-	float evap = a.GetArg("evap", 0.005f);
+	// ========================================================================
+	// Parse algorithm configuration parameters
+	// ========================================================================
 	
-	// Parameters for algorithms 3 and 4 (multi-colony)
-	int numACS = a.GetArg("numacs", 3);
-	int numColonies = a.GetArg("numcolonies", numACS + 1);
-	float convThreshold = a.GetArg("convthreshold", 0.08f);
-	float entropyThreshold = a.GetArg("entropythreshold", 5.0f);
+	// Core algorithm selection and timeout
+	const int algorithmId = args.GetArg("alg", 0);  // 0-4, see algorithm list in header
+	int timeoutSeconds = args.GetArg("timeout", -1);  // -1 = auto-select based on puzzle size
 	
-	bool blank = a.GetArg("blank", false);
-	bool verbose = a.GetArg("verbose", 0);
-	bool showInitial = a.GetArg("showinitial", 0);
-	bool jsonOutput = a.GetArg("json", 0);
-	bool success;
+	// Ant Colony Optimization parameters (algorithms 0, 2, 3, 4)
+	const int antCount = args.GetArg("ants", 10);  // Number of ants per colony
+	const float q0 = args.GetArg("q0", 0.9f);      // Exploitation vs exploration (0.0-1.0)
+	const float rho = args.GetArg("rho", 0.9f);    // Pheromone persistence (0.0-1.0)
+	const float evaporationRate = args.GetArg("evap", 0.005f);  // Pheromone evaporation rate
+	
+	// Parallel algorithm parameters (algorithms 2, 4)
+	const int threadCount = args.GetArg("threads", 4);  // Number of parallel threads
+	
+	// Multi-colony algorithm parameters (algorithms 4)
+	const int acsColonyCount = args.GetArg("numacs", 3);  // Number of ACS colonies
+	const int totalColonyCount = args.GetArg("numcolonies", acsColonyCount + 1);  // Total colonies (ACS + MMAS)
+	const float convergenceThreshold = args.GetArg("convthreshold", 0.08f);  // Threshold for cooperative game theory
+	const float entropyThreshold = args.GetArg("entropythreshold", 5.0f);  // Threshold for pheromone fusion
+	
+	// Output control flags
+	const bool blank = args.GetArg("blank", false);         // Generate blank puzzle
+	const bool verbose = args.GetArg("verbose", 0);         // Detailed output
+	const bool showInitial = args.GetArg("showinitial", 0); // Show board after initial CP
+	const bool jsonOutput = args.GetArg("json", 0);         // JSON output format
+	bool success;  // Will be set by solver
 
-	if ( timeOutSecs <= 0 )
+	// Auto-select timeout based on puzzle size if not specified
+	// These defaults are based on empirical testing:
+	// - 9x9 puzzles typically solve in < 5 seconds
+	// - 16x16 puzzles typically solve in < 20 seconds
+	// - 25x25+ puzzles may need 2+ minutes
+	if (timeoutSeconds <= 0)
 	{
 		int cellCount = board.CellCount();
-		if ( cellCount == 81 )
-			timeOutSecs = 5;
-		else if ( cellCount == 256 )
-			timeOutSecs = 20;
-		else if ( cellCount == 625 )
-			timeOutSecs = 120;
+		if (cellCount == PuzzleDefaults::CELL_COUNT_9X9)
+			timeoutSeconds = PuzzleDefaults::TIMEOUT_9X9;
+		else if (cellCount == PuzzleDefaults::CELL_COUNT_16X16)
+			timeoutSeconds = PuzzleDefaults::TIMEOUT_16X16;
+		else if (cellCount == PuzzleDefaults::CELL_COUNT_25X25)
+			timeoutSeconds = PuzzleDefaults::TIMEOUT_25X25;
 		else
-			timeOutSecs = 120;
+			timeoutSeconds = PuzzleDefaults::TIMEOUT_DEFAULT;
 	}
 
-	float solTime;
-	Board solution;
-	SudokuSolver *solver;
+	float solutionTime;
+	Board solutionBoard;
+	unique_ptr<SudokuSolver> solver;
 	
 	// ========================================================================
 	// SECTION 2.2: ALGORITHM SELECTION & CONFIGURATION
 	// ========================================================================
 	
-	if ( algorithm == 0 )
-		solver = new SudokuAntSystem( nAnts, q0, rho, 1.0f/board.CellCount(), evap);
-	else if ( algorithm == 1 )
-		solver = new BacktrackSearch();
-	else if ( algorithm == 2 )
-		solver = new ParallelSudokuAntSystem( nThreads, nAnts, q0, rho, 1.0f/board.CellCount(), evap);
-	else if ( algorithm == 3 )
-		solver = new MultiColonyAntSystem( nAnts, q0, rho, 1.0f/board.CellCount(), evap, numColonies, numACS, convThreshold, entropyThreshold);
-	else if ( algorithm == 4 )
-		solver = new MultiThreadMultiColonyAntSystem( nThreads, nAnts, q0, rho, 1.0f/board.CellCount(), evap, numColonies, numACS, convThreshold, entropyThreshold);
+	// Calculate initial pheromone value (tau0) based on board size
+	const float initialPheromone = 1.0f / board.CellCount();
+	
+	// Create solver instance based on selected algorithm
+	if (algorithmId == 0)
+	{
+		// Algorithm 0: Single-threaded Ant Colony System
+		solver = make_unique<SudokuAntSystem>(antCount, q0, rho, initialPheromone, evaporationRate);
+	}
+	else if (algorithmId == 1)
+	{
+		// Algorithm 1: Backtracking search
+		solver = make_unique<BacktrackSearch>();
+	}
+	else if (algorithmId == 2)
+	{
+		// Algorithm 2: Parallel ACS with multiple sub-colonies
+		solver = make_unique<ParallelSudokuAntSystem>(threadCount, antCount, q0, rho, initialPheromone, evaporationRate);
+	}
+	else if (algorithmId == 3)
+	{
+		// Algorithm 3: Multi-Colony Ant System (single-threaded)
+		solver = make_unique<MultiColonyAntSystem>(antCount, q0, rho, initialPheromone, evaporationRate, 
+		                                           totalColonyCount, acsColonyCount, convergenceThreshold, entropyThreshold);
+	}
+	else if (algorithmId == 4)
+	{
+		// Algorithm 4: Multi-Thread Multi-Colony Ant System
+		solver = make_unique<MultiThreadMultiColonyAntSystem>(threadCount, antCount, q0, rho, initialPheromone, evaporationRate,
+		                                                       totalColonyCount, acsColonyCount, convergenceThreshold, entropyThreshold);
+	}
 	else
 	{
-		cerr << "Invalid algorithm: " << algorithm << ". Use 0 (single-thread ACS), 1 (backtracking), 2 (parallel ACS), 3 (multi-colony), or 4 (multi-thread multi-colony)." << endl;
-		exit(1);
+		cerr << "Error: Invalid algorithm: " << algorithmId 
+		     << ". Use 0 (single-thread ACS), 1 (backtracking), 2 (parallel ACS), "
+		     << "3 (multi-colony), or 4 (multi-thread multi-colony)." << endl;
+		return 1;
 	}
 
-	// Optionally show the puzzle after constraint propagation
-	if ( showInitial )
+	// Optionally show the puzzle after initial constraint propagation
+	if (showInitial)
 	{
-		cout << "Initial constrained grid" << endl;
+		cout << "Initial constrained grid:" << endl;
 		cout << board.AsString(false, true) << endl;
 	}
 	
@@ -234,245 +477,207 @@ int main( int argc, char *argv[] )
 	// SECTION 2.3: RUN SOLVER
 	// ========================================================================
 	
-	success = solver->Solve(board, (float)timeOutSecs);
-	solution = solver->GetSolution();
-	solTime = solver->GetSolutionTime();
+	success = solver->Solve(board, static_cast<float>(timeoutSeconds));
+	solutionBoard = solver->GetSolution();
+	solutionTime = solver->GetSolutionTime();
 	
 
 	// ========================================================================
 	// SECTION 2.4: SOLUTION VALIDATION & OUTPUT
 	// ========================================================================
 	
-	// Sanity check the solution
+	// Validate the solution
 	string errorMessage;
-	if ( success && !board.CheckSolution(solution) )
+	if (success && !board.CheckSolution(solutionBoard))
 	{
-		errorMessage = "solution not valid";
-		if ( !jsonOutput )
+		errorMessage = "Solution not valid";
+		if (!jsonOutput)
 		{
-			cout << "solution not valid" << a.GetArg("file",string()) << " " << algorithm << endl;
-			cout << "numfixedCells " << solution.FixedCellCount() << endl;
-
-			string outString = solution.AsString(true );
-			cout << outString << endl;
+			cout << "Error: Solution not valid for file: " << args.GetArg("file", string()) 
+			     << ", algorithm: " << algorithmId << endl;
+			cout << "Number of fixed cells: " << solutionBoard.FixedCellCount() << endl;
+			cout << solutionBoard.AsString(true) << endl;
 		}
 		success = false;
 	}
 	
-	// Get CP timing statistics
+	// ========================================================================
+	// Extract Constraint Propagation Timing Statistics
+	// ========================================================================
+	// Initial CP time: time spent in constraint propagation during board initialization
 	float initialCPTime = GetInitialCPTime();
-	solTime = solTime + initialCPTime;
+	solutionTime += initialCPTime;  // Include initial CP in total time
 	
 	float antCPTime = GetAntCPTime();
 	int cpCallCount = GetCPCallCount();
 	
-	// Timing values from winning thread (for multi-threaded algorithms)
-	float winningThreadCPTime = antCPTime;  // Default to global for single-threaded
-	float winningThreadAntGuessingTime = 0.0f;  // Default to 0, will be set below
-	float coopGameTime = 0.0f;
-	float pheromoneFusionTime = 0.0f;
-	float publicPathTime = 0.0f;
-	float winningThreadCommTime = 0.0f;  // Communication time from winning thread
-	int winningThreadId = -1;
+	// ========================================================================
+	// Extract Timing from Winning Thread (for multi-threaded algorithms)
+	// ========================================================================
+	// For parallel algorithms (2 and 4), each thread maintains its own timing
+	// statistics. We extract timing from the "winning thread" (the thread that
+	// found the best solution) to get representative timing values.
+	// For single-threaded algorithms, we use the global timing values.
+	// ========================================================================
 	
-	// Find winning thread and extract timing values for multi-threaded algorithms
-	if ( algorithm == 2 )
+	WinningThreadTimings timings;
+	timings.cpTime = antCPTime;  // Default for single-threaded
+	
+	switch (algorithmId)
 	{
-		ParallelSudokuAntSystem* parallelSolver = dynamic_cast<ParallelSudokuAntSystem*>(solver);
-		if ( parallelSolver )
-		{
-			const auto& subColonies = parallelSolver->GetSubColonies();
-			int bestScore = 0;
-			for ( size_t i = 0; i < subColonies.size(); i++ )
+		case 0:  // Single-threaded ACS
+			if (auto* antSolver = dynamic_cast<SudokuAntSystem*>(solver.get()))
+				timings.antDecisionTime = antSolver->GetAntGuessingTime();
+			break;
+		
+		case 2:  // Parallel ACS
+			if (auto* parallelSolver = dynamic_cast<ParallelSudokuAntSystem*>(solver.get()))
+				timings = extractParallelACSTimings(parallelSolver);
+			break;
+		
+		case 3:  // Multi-Colony (single-threaded)
+			if (auto* multiColonySolver = dynamic_cast<MultiColonyAntSystem*>(solver.get()))
 			{
-				int score = subColonies[i]->GetBestSolScore();
-				if ( score > bestScore )
-				{
-					bestScore = score;
-					winningThreadId = (int)i;
-					winningThreadCPTime = subColonies[i]->GetCPTime();
-					winningThreadAntGuessingTime = subColonies[i]->GetAntGuessingTime();
-					winningThreadCommTime = subColonies[i]->GetCommunicationTime();
-				}
+				timings.antDecisionTime = multiColonySolver->GetAntGuessingTime();
+				timings.cooperativeGameTime = multiColonySolver->GetCooperativeGameTime();
+				timings.pheromoneFusionTime = multiColonySolver->GetPheromoneFusionTime();
+				timings.publicPathRecommendationTime = multiColonySolver->GetPublicPathRecommendationTime();
 			}
-		}
-	}
-	else if ( algorithm == 4 )
-	{
-		MultiThreadMultiColonyAntSystem* multiThreadSolver = dynamic_cast<MultiThreadMultiColonyAntSystem*>(solver);
-		if ( multiThreadSolver )
-		{
-			const auto& threads = multiThreadSolver->GetThreads();
-			int bestScore = 0;
-			for ( size_t i = 0; i < threads.size(); i++ )
-			{
-				int score = threads[i]->GetBestSolScore();
-				if ( score > bestScore )
-				{
-					bestScore = score;
-					winningThreadId = (int)i;
-					winningThreadCPTime = threads[i]->GetCPTime();
-					winningThreadAntGuessingTime = threads[i]->GetAntGuessingTime();
-					winningThreadCommTime = threads[i]->GetCommunicationTime();
-					coopGameTime = threads[i]->GetCooperativeGameTime();
-					pheromoneFusionTime = threads[i]->GetPheromoneFusionTime();
-					publicPathTime = threads[i]->GetPublicPathRecommendationTime();
-				}
-			}
-		}
-	}
-	else if ( algorithm == 3 )
-	{
-		MultiColonyAntSystem* multiColonySolver = dynamic_cast<MultiColonyAntSystem*>(solver);
-		if ( multiColonySolver )
-		{
-			winningThreadCPTime = antCPTime;  // Single-threaded, use global
-			winningThreadAntGuessingTime = multiColonySolver->GetAntGuessingTime();
-			coopGameTime = multiColonySolver->GetCooperativeGameTime();
-			pheromoneFusionTime = multiColonySolver->GetPheromoneFusionTime();
-			publicPathTime = multiColonySolver->GetPublicPathRecommendationTime();
-		}
-	}
-	else if ( algorithm == 0 )
-	{
-		SudokuAntSystem* antSolver = dynamic_cast<SudokuAntSystem*>(solver);
-		if ( antSolver )
-			winningThreadAntGuessingTime = antSolver->GetAntGuessingTime();
+			break;
+		
+		case 4:  // Multi-Thread Multi-Colony
+			if (auto* multiThreadSolver = dynamic_cast<MultiThreadMultiColonyAntSystem*>(solver.get()))
+				timings = extractMultiThreadMultiColonyTimings(multiThreadSolver);
+			break;
 	}
 	
-	float totalCPTime = initialCPTime + winningThreadCPTime;
-
-	int iterations = 0;
-	bool communication = false;
-	if ( algorithm == 0 )
-	{
-		SudokuAntSystem* antSolver = dynamic_cast<SudokuAntSystem*>(solver);
-		if ( antSolver )
-			iterations = antSolver->GetIterationsCompleted();
-	}
-	else if ( algorithm == 2 )
-	{
-		ParallelSudokuAntSystem* parallelSolver = dynamic_cast<ParallelSudokuAntSystem*>(solver);
-		if ( parallelSolver )
-		{
-			iterations = parallelSolver->GetIterationsCompleted();
-			communication = parallelSolver->GetCommunicationOccurred();
-		}
-	}
-	else if ( algorithm == 3 )
-	{
-		MultiColonyAntSystem* multiColonySolver = dynamic_cast<MultiColonyAntSystem*>(solver);
-		if ( multiColonySolver )
-			iterations = multiColonySolver->GetIterationCount();
-	}
-	else if ( algorithm == 4 )
-	{
-		MultiThreadMultiColonyAntSystem* multiThreadSolver = dynamic_cast<MultiThreadMultiColonyAntSystem*>(solver);
-		if ( multiThreadSolver )
-		{
-			iterations = multiThreadSolver->GetIterationsCompleted();
-			communication = multiThreadSolver->GetCommunicationOccurred();
-		}
-	}
+	float totalCPTime = initialCPTime + timings.cpTime;
 	
-	if ( jsonOutput )
+	// ========================================================================
+	// Extract Solver Statistics (iterations, communication status)
+	// ========================================================================
+	SolverStatistics stats = extractSolverStatistics(solver.get(), algorithmId);
+	
+	// ========================================================================
+	// JSON Output Format
+	// ========================================================================
+	// Machine-readable format for integration with other tools and scripts.
+	// Includes all core metrics: success, time, iterations, CP statistics.
+	// Note: JSON output excludes some verbose timing details for simplicity.
+	if (jsonOutput)
 	{
 		cout << fixed << setprecision(6);
 		cout << "{";
 		cout << "\"success\":" << (success ? "true" : "false") << ",";
-		cout << "\"algorithm\":" << algorithm << ",";
-		cout << "\"time\":" << solTime << ",";
-		cout << "\"iterations\":" << iterations << ",";
-		cout << "\"communication\":" << (communication ? "true" : "false") << ",";
-		cout << "\"solution\":\"" << JsonEscape(solution.AsString(true)) << "\",";
-		cout << "\"error\":\"" << JsonEscape(errorMessage) << "\",";
+		cout << "\"algorithm\":" << algorithmId << ",";
+		cout << "\"time\":" << solutionTime << ",";
+		cout << "\"iterations\":" << stats.iterations << ",";
+		cout << "\"communication\":" << (stats.communicationOccurred ? "true" : "false") << ",";
+		cout << "\"solution\":\"" << jsonEscape(solutionBoard.AsString(true)) << "\",";
+		cout << "\"error\":\"" << jsonEscape(errorMessage) << "\",";
 		cout << "\"cp_initial\":" << initialCPTime << ",";
-		cout << "\"cp_ant\":" << winningThreadCPTime << ",";
+		cout << "\"cp_ant\":" << timings.cpTime << ",";
 		cout << "\"cp_calls\":" << cpCallCount << ",";
 		cout << "\"cp_total\":" << totalCPTime;
 		cout << "}" << endl;
 		return 0;
 	}
 
-	// Output results
-	if ( !verbose )
+	// ========================================================================
+	// Compact Output Format (for batch processing)
+	// ========================================================================
+	if (!verbose)
 	{
-		// Compact output format (for batch processing)
-		cout << !success << endl << solTime << endl;
+		cout << !success << endl << solutionTime << endl;
 	}
 	
-	// Always output CP timing for parsing by scripts (both verbose and non-verbose)
+	// ========================================================================
+	// Output CP timing for script parsing
+	// ========================================================================
+	// These lines are always output (both verbose and non-verbose modes) to
+	// allow the run_general.py script to parse timing statistics.
+	// Format: "cp_initial: <value>" for easy regex matching.
 	cout << "cp_initial: " << initialCPTime << endl;
-	cout << "cp_ant: " << winningThreadCPTime << endl;
+	cout << "cp_ant: " << timings.cpTime << endl;
 	cout << "cp_calls: " << cpCallCount << endl;
 	
-	if ( verbose )
+	// ========================================================================
+	// Verbose Output Format (for interactive use)
+	// ========================================================================
+	if (verbose)
 	{
-		// Verbose output format (for interactive use)
-		if ( !success )
+		if (!success)
 		{
-			cout << "failed in time " << solTime << endl;
+			cout << "Failed to solve in " << solutionTime << " seconds" << endl;
 		}
 		else
 		{
 			cout << "Solution:" << endl;
-			string outString = solution.AsString(true);
-			cout << outString << endl;
-			cout << "solved in " << solTime << endl;
+			cout << solutionBoard.AsString(true) << endl;
+			cout << "Solved in " << solutionTime << " seconds" << endl;
 		}
 		
 		// Show iterations
-		cout << "iterations: " << iterations << endl;
+		cout << "Iterations: " << stats.iterations << endl;
 		
 		// Show communication status and winning thread for multi-threaded algorithms
-		if ( algorithm == 2 || algorithm == 4 )
+		if (algorithmId == 2 || algorithmId == 4)
 		{
-			cout << "communication: " << (communication ? "yes" : "no") << endl;
-			if ( winningThreadId >= 0 )
-				cout << "Thread: " << (winningThreadId + 1) << " winner" << endl;
+			cout << "Communication: " << (stats.communicationOccurred ? "yes" : "no") << endl;
+			if (timings.threadId >= 0)
+				cout << "Winning Thread: " << (timings.threadId + 1) << endl;
 		}
 		
 		// ====================================================================
-		// TIME SECTION
+		// TIMING BREAKDOWN SECTION
 		// ====================================================================
-		cout << "\n==Time==" << endl;
-		cout << fixed << setprecision(6);
+		// Display detailed timing breakdown showing how total solve time is
+		// distributed across different components. Each component shows both
+		// absolute time (seconds) and percentage of total solve time.
+		// 
+		// Components displayed depend on algorithm:
+		// - All algorithms: Initial CP, Ant CP, Ant Decision-Making
+		// - Algorithms 3 & 4: + Coop Game, Pheromone Fusion, Public Path
+		// - Algorithms 2 & 4: + Thread Communication
+		// 
+		// Note: Sum of components may not equal 100% due to untracked overhead
+		// (loop control, memory allocation, synchronization, etc.)
+		// See TIMING_DOCUMENTATION.md for details.
+		// ====================================================================
+		cout << "\n==Time Breakdown==" << endl;
 		
 		// Calculate percentages (avoid division by zero)
-		float totalTime = (solTime > 0.0f) ? solTime : 1.0f;
+		float totalTime = (solutionTime > 0.0f) ? solutionTime : 1.0f;
 		float initialCPPercent = (initialCPTime / totalTime) * 100.0f;
-		float antCPPercent = (winningThreadCPTime / totalTime) * 100.0f;
-		float antGuessingPercent = (winningThreadAntGuessingTime / totalTime) * 100.0f;
-		float coopGamePercent = (coopGameTime / totalTime) * 100.0f;
-		float fusionPercent = (pheromoneFusionTime / totalTime) * 100.0f;
-		float publicPathPercent = (publicPathTime / totalTime) * 100.0f;
-		float commPercent = (winningThreadCommTime / totalTime) * 100.0f;
+		float antCPPercent = (timings.cpTime / totalTime) * 100.0f;
+		float antDecisionPercent = (timings.antDecisionTime / totalTime) * 100.0f;
+		float coopGamePercent = (timings.cooperativeGameTime / totalTime) * 100.0f;
+		float fusionPercent = (timings.pheromoneFusionTime / totalTime) * 100.0f;
+		float publicPathPercent = (timings.publicPathRecommendationTime / totalTime) * 100.0f;
+		float commPercent = (timings.communicationTime / totalTime) * 100.0f;
 		
-		cout << "Initial CP Time: " << initialCPTime << " s (" << setprecision(2) << initialCPPercent << "%)" << endl;
-		cout << fixed << setprecision(6);
-		cout << "Ant CP Time: " << winningThreadCPTime << " s (" << setprecision(2) << antCPPercent << "%)" << endl;
-		cout << fixed << setprecision(6);
-		cout << "Ant Guessing Time: " << winningThreadAntGuessingTime << " s (" << setprecision(2) << antGuessingPercent << "%)" << endl;
-		cout << fixed << setprecision(6);
+		// Display timing components
+		printTimingLine("Initial CP Time", initialCPTime, initialCPPercent);
+		printTimingLine("Ant CP Time", timings.cpTime, antCPPercent);
+		printTimingLine("Ant Decision Time", timings.antDecisionTime, antDecisionPercent);
 		
 		// Show multi-colony timing (algorithms 3 and 4)
-		if ( algorithm == 3 || algorithm == 4 )
+		if (algorithmId == 3 || algorithmId == 4)
 		{
-			cout << "Coop Game Time: " << coopGameTime << " s (" << setprecision(2) << coopGamePercent << "%)" << endl;
-			cout << fixed << setprecision(6);
-			cout << "Pheromone Fusion Time: " << pheromoneFusionTime << " s (" << setprecision(2) << fusionPercent << "%)" << endl;
-			cout << fixed << setprecision(6);
-			cout << "Public Path Recom Time: " << publicPathTime << " s (" << setprecision(2) << publicPathPercent << "%)" << endl;
-			cout << fixed << setprecision(6);
+			printTimingLine("Cooperative Game Time", timings.cooperativeGameTime, coopGamePercent);
+			printTimingLine("Pheromone Fusion Time", timings.pheromoneFusionTime, fusionPercent);
+			printTimingLine("Public Path Recommendation Time", timings.publicPathRecommendationTime, publicPathPercent);
 		}
 		
 		// Show communication time for multi-threaded algorithms
-		if ( algorithm == 2 || algorithm == 4 )
+		if (algorithmId == 2 || algorithmId == 4)
 		{
-			cout << "Communication Between Threads Time: " << winningThreadCommTime << " s (" << setprecision(2) << commPercent << "%)" << endl;
-			cout << fixed << setprecision(6);
+			printTimingLine("Communication Between Threads Time", timings.communicationTime, commPercent);
 		}
 		
-		cout << "Total Solve Time: " << solTime << " s" << endl;
+		cout << fixed << setprecision(6);
+		cout << "Total Solve Time: " << solutionTime << " s" << endl;
 	}
+	
+	return 0;
 }
