@@ -1,4 +1,11 @@
 #pragma once
+
+#include <atomic>
+#include <mutex>
+
+// Forward declaration
+class Timer;
+
 /*******************************************************************************
  * CONSTRAINT PROPAGATION - Sudoku Logic Rules
  * 
@@ -54,9 +61,10 @@ void EndInitialCP();
 
 namespace CP
 {
-	// Register a thread's CP time accumulator pointer
-	// When CP::AddTime() is called, it will add to this pointer if registered
-	void RegisterThreadCPTime(float* cpTimePtr);
+	// Register a thread's CP time accumulator pointer (atomic for thread-safe accumulation)
+	// For multi-threaded algorithms (2, 4), pass std::atomic<float>* 
+	// For single-threaded algorithms (0, 3), this is not used (pass nullptr or don't call)
+	void RegisterThreadCPTime(std::atomic<float>* cpTimePtr);
 	
 	// Unregister the current thread's CP time accumulator
 	void UnregisterThreadCPTime();
@@ -65,16 +73,15 @@ namespace CP
 	// If no thread is registered, this does nothing
 	void AddTime(float elapsed);
 	
-	// Register a thread's ant guessing time accumulator pointer
-	// When CP::AddAntGuessingTime() is called, it will add to this pointer if registered
-	void RegisterThreadAntGuessingTime(float* antGuessingTimePtr);
+	// Register a thread's main algorithm timer pointer (for pause/resume)
+	// When CP work is being done, the main algorithm timer will be paused
+	void RegisterMainAlgorithmTimer(Timer* timerPtr);
 	
-	// Unregister the current thread's ant guessing time accumulator
-	void UnregisterThreadAntGuessingTime();
+	// Unregister the current thread's main algorithm timer
+	void UnregisterMainAlgorithmTimer();
 	
-	// Add elapsed time to the registered thread's ant guessing time accumulator
-	// If no thread is registered, this does nothing
-	void AddAntGuessingTime(float elapsed);
+	// Get the registered main algorithm timer (for manual pause/resume)
+	Timer* GetMainAlgorithmTimer();
 }
 
 /*******************************************************************************

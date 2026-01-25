@@ -28,10 +28,10 @@ static std::atomic<float> g_antCPTime{0.0f};
 static std::atomic<int> g_cpCallCount{0};
 static bool g_inInitialCP = false;
 
-// Thread-local storage for per-thread CP time accumulator
-thread_local float* g_threadCPTime = nullptr;
-// Thread-local storage for per-thread ant guessing time accumulator
-thread_local float* g_threadAntGuessingTime = nullptr;
+// Thread-local storage for per-thread CP time accumulator (atomic for thread-safety)
+thread_local std::atomic<float>* g_threadCPTime = nullptr;
+// Thread-local storage for per-thread main algorithm timer (for pause/resume)
+thread_local Timer* g_mainAlgorithmTimer = nullptr;
 
 void ResetCPTiming()
 {
@@ -71,7 +71,7 @@ void EndInitialCP()
 // CP NAMESPACE - Per-thread CP time tracking implementation
 // ============================================================================
 
-void CP::RegisterThreadCPTime(float* cpTimePtr)
+void CP::RegisterThreadCPTime(std::atomic<float>* cpTimePtr)
 {
 	g_threadCPTime = cpTimePtr;
 }
@@ -85,26 +85,28 @@ void CP::AddTime(float elapsed)
 {
 	if (g_threadCPTime != nullptr)
 	{
-		*g_threadCPTime += elapsed;
+		// Thread-safe atomic accumulation (for algorithms 2, 4)
+		float expected = g_threadCPTime->load();
+		float desired;
+		do {
+			desired = expected + elapsed;
+		} while (!g_threadCPTime->compare_exchange_weak(expected, desired));
 	}
 }
 
-void CP::RegisterThreadAntGuessingTime(float* antGuessingTimePtr)
+void CP::RegisterMainAlgorithmTimer(Timer* timerPtr)
 {
-	g_threadAntGuessingTime = antGuessingTimePtr;
+	g_mainAlgorithmTimer = timerPtr;
 }
 
-void CP::UnregisterThreadAntGuessingTime()
+void CP::UnregisterMainAlgorithmTimer()
 {
-	g_threadAntGuessingTime = nullptr;
+	g_mainAlgorithmTimer = nullptr;
 }
 
-void CP::AddAntGuessingTime(float elapsed)
+Timer* CP::GetMainAlgorithmTimer()
 {
-	if (g_threadAntGuessingTime != nullptr)
-	{
-		*g_threadAntGuessingTime += elapsed;
-	}
+	return g_mainAlgorithmTimer;
 }
 
 /*******************************************************************************
@@ -130,8 +132,17 @@ bool Rule1_Elimination(Board& board, int cellIndex)
 		float elapsed = std::chrono::duration<float>(endTime - startTime).count();
 		if (g_inInitialCP)
 			AtomicAddFloat(g_initialCPTime, elapsed);
+		else if (g_threadCPTime != nullptr)
+		{
+			// Thread-safe atomic accumulation for parallel algorithms (alg 2, 4)
+			float expected = g_threadCPTime->load();
+			float desired;
+			do {
+				desired = expected + elapsed;
+			} while (!g_threadCPTime->compare_exchange_weak(expected, desired));
+		}
 		else
-			AtomicAddFloat(g_antCPTime, elapsed);
+			AtomicAddFloat(g_antCPTime, elapsed);  // Global accumulation for single-threaded (alg 0, 3)
 		return false;
 	}
 	
@@ -171,8 +182,14 @@ bool Rule1_Elimination(Board& board, int cellIndex)
 	float elapsed = std::chrono::duration<float>(endTime - startTime).count();
 	if (g_inInitialCP)
 		AtomicAddFloat(g_initialCPTime, elapsed);
+	else if (g_threadCPTime != nullptr)
+	{
+		// Thread-safe atomic accumulation for parallel algorithms (alg 2, 4)
+		float current = g_threadCPTime->load();
+		while (!g_threadCPTime->compare_exchange_weak(current, current + elapsed));
+	}
 	else
-		AtomicAddFloat(g_antCPTime, elapsed);
+		AtomicAddFloat(g_antCPTime, elapsed);  // Global accumulation for single-threaded (alg 0, 3)
 	
 	// If after elimination only one value remains, fix the cell
 	if (fixedCellsConstraint.Fixed())
@@ -212,8 +229,17 @@ bool Rule2_HiddenSingle(Board& board, int cellIndex)
 		float elapsed = std::chrono::duration<float>(endTime - startTime).count();
 		if (g_inInitialCP)
 			AtomicAddFloat(g_initialCPTime, elapsed);
+		else if (g_threadCPTime != nullptr)
+		{
+			// Thread-safe atomic accumulation for parallel algorithms (alg 2, 4)
+			float expected = g_threadCPTime->load();
+			float desired;
+			do {
+				desired = expected + elapsed;
+			} while (!g_threadCPTime->compare_exchange_weak(expected, desired));
+		}
 		else
-			AtomicAddFloat(g_antCPTime, elapsed);
+			AtomicAddFloat(g_antCPTime, elapsed);  // Global accumulation for single-threaded (alg 0, 3)
 		return false;
 	}
 	
@@ -250,8 +276,14 @@ bool Rule2_HiddenSingle(Board& board, int cellIndex)
 	float elapsed = std::chrono::duration<float>(endTime - startTime).count();
 	if (g_inInitialCP)
 		AtomicAddFloat(g_initialCPTime, elapsed);
+	else if (g_threadCPTime != nullptr)
+	{
+		// Thread-safe atomic accumulation for parallel algorithms (alg 2, 4)
+		float current = g_threadCPTime->load();
+		while (!g_threadCPTime->compare_exchange_weak(current, current + elapsed));
+	}
 	else
-		AtomicAddFloat(g_antCPTime, elapsed);
+		AtomicAddFloat(g_antCPTime, elapsed);  // Global accumulation for single-threaded (alg 0, 3)
 	
 	// Check if any value in this cell is unique to this cell within its row
 	if ((cell - rowAll).Fixed())

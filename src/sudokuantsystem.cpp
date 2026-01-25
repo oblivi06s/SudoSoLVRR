@@ -80,14 +80,12 @@ void SudokuAntSystem::ClearPheromone()
 bool SudokuAntSystem::Solve(const Board& puzzle, float maxTime )
 {
 	solutionTimer.Reset();
+	acsTimer.Reset();
 	int iter = 0;
 	bool solved = false;
 	bestPher = 0.0f;
 	iterationsCompleted = 0;
-	antGuessingTime = 0.0f;
-	
-	// Register ant guessing time pointer for tracking
-	CP::RegisterThreadAntGuessingTime(&antGuessingTime);
+	acsTime = 0.0f;
 	
 	// Initialize pheromone matrix
 	InitPheromone( puzzle.CellCount(), puzzle.GetNumUnits() );
@@ -160,8 +158,8 @@ bool SudokuAntSystem::Solve(const Board& puzzle, float maxTime )
 	
 	iterationsCompleted = iter;
 	
-	// Unregister ant guessing time pointer
-	CP::UnregisterThreadAntGuessingTime();
+	// Get the ACS time (will be calculated by subtraction in solvermain.cpp)
+	acsTime = acsTimer.Elapsed();
 	
 	ClearPheromone();
 	return solved;

@@ -46,9 +46,10 @@ private:
 	float* contributions;
 	bool* hasContribution;
 	
-	// CP time tracking for this thread
-	float cpTime;
-	float antGuessingTime;  // Time spent by ants in decision-making
+	// Timing for this thread
+	Timer acsTimer;  // Main ACS algorithm timer (paused during CP and communication)
+	float acsTime;  // Time spent in main ACS algorithm work
+	std::atomic<float> cpTime;  // Atomic for thread-safe accumulation from CP rules
 	float communicationTime;  // Communication time for this thread
 	
 	void InitPheromone(int numCells, int valuesPerCell);
@@ -79,15 +80,15 @@ public:
 	int GetBestSolScore() const { return bestSolScore; }
 	int GetCurrentIteration() const { return currentIteration; }
 	
-	// CP time, ant guessing time, and communication time getters
-	float GetCPTime() const { return cpTime; }
-	float GetAntGuessingTime() const { return antGuessingTime; }
+	// Timing getters and setters
+	float GetACSTime() const { return acsTime; }
+	float GetCPTime() const { return cpTime.load(); }
 	float GetCommunicationTime() const { return communicationTime; }
-	float* GetCPTimePtr() { return &cpTime; }
-	float* GetAntGuessingTimePtr() { return &antGuessingTime; }
+	std::atomic<float>* GetCPTimePtr() { return &cpTime; }
+	Timer* GetACSTimerPtr() { return &acsTimer; }  // For pause/resume access
+	void SetACSTime(float time) { acsTime = time; }  // For setting the final time
 	void AddCommunicationTime(float elapsed) { communicationTime += elapsed; }
-	void ResetCPTime() { cpTime = 0.0f; }
-	void ResetAntGuessingTime() { antGuessingTime = 0.0f; }
+	void ResetCPTime() { cpTime.store(0.0f); }
 	void ResetCommunicationTime() { communicationTime = 0.0f; }
 	
 	// Set solutions (for communication)

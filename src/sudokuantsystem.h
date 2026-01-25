@@ -18,8 +18,9 @@ class SudokuAntSystem : public SudokuSolver, public IAntColony
 	float bestPher;
 	int iterationsCompleted;
 	Timer solutionTimer;
+	Timer acsTimer;  // Main ACS algorithm timer (paused during CP)
 	float solTime;
-	float antGuessingTime;  // Time spent by ants in decision-making
+	float acsTime;  // Time spent in main ACS algorithm work
 
 	std::vector<SudokuAnt*> antList;
 	std::mt19937 randGen; 
@@ -34,7 +35,7 @@ class SudokuAntSystem : public SudokuSolver, public IAntColony
 
 public:
 	SudokuAntSystem(int numAnts, float q0, float rho, float pher0, float bestEvap) : 
-		numAnts(numAnts), q0(q0), rho(rho), pher0(pher0), bestEvap(bestEvap), iterationsCompleted(0), antGuessingTime(0.0f)
+		numAnts(numAnts), q0(q0), rho(rho), pher0(pher0), bestEvap(bestEvap), iterationsCompleted(0)
 	{
 		for ( int i = 0; i < numAnts; i++ )
 			antList.push_back(new SudokuAnt(this));
@@ -51,7 +52,7 @@ public:
 	virtual float GetSolutionTime() { return solTime; }
 	virtual const Board& GetSolution() { return bestSol; }
 	int GetIterationsCompleted() { return iterationsCompleted; }
-	float GetAntGuessingTime() const { return antGuessingTime; }
+	float GetACSTime() const { return acsTime; }
 	// helpers for ants
 	inline float Getq0() { return q0; }
 	inline float random() { return randomDist(randGen); }

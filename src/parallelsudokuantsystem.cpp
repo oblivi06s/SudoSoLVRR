@@ -32,7 +32,7 @@ SubColony::SubColony(int id, int numAnts, float q0, float rho, float pher0, floa
 	: numAnts(numAnts), q0(q0), rho(rho), pher0(pher0), bestEvap(bestEvap), bestPher(0.0f),
 	  iterationBestScore(0), bestSolScore(0), receivedIterationBestScore(0), receivedBestSolScore(0),
 	  currentIteration(0), pher(nullptr), numCells(0), numUnits(0),
-	  contributions(nullptr), hasContribution(nullptr), cpTime(0.0f), antGuessingTime(0.0f), communicationTime(0.0f)
+	  contributions(nullptr), hasContribution(nullptr), acsTime(0.0f), cpTime(0.0f), communicationTime(0.0f)
 {
 	// Initialize random number generator with unique seed per colony
 	randomDist = std::uniform_real_distribution<float>(0.0f, 1.0f);
@@ -62,8 +62,8 @@ void SubColony::Initialize(const Board& puzzle)
 	numUnits = puzzle.GetNumUnits();
 	
 	// Reset timing counters
+	acsTime = 0.0f;
 	cpTime = 0.0f;
-	antGuessingTime = 0.0f;
 	communicationTime = 0.0f;
 	
 	// Setup random distribution for ant starting positions
@@ -588,13 +588,13 @@ void ParallelSudokuAntSystem::SubColonyWorker(int colonyId, const Board& puzzle)
 	SubColony* colony = subColonies[colonyId];
 	colony->Initialize(puzzle);
 	colony->ResetCPTime();
-	colony->ResetAntGuessingTime();
 	colony->ResetCommunicationTime();
+	
+	// Reset the ACS timer
+	colony->GetACSTimerPtr()->Reset();
 	
 	// Register this thread's CP time pointer for per-thread tracking
 	CP::RegisterThreadCPTime(colony->GetCPTimePtr());
-	// Register this thread's ant guessing time pointer for per-thread tracking
-	CP::RegisterThreadAntGuessingTime(colony->GetAntGuessingTimePtr());
 	
 	int iter = 0;
 	
@@ -686,10 +686,9 @@ void ParallelSudokuAntSystem::SubColonyWorker(int colonyId, const Board& puzzle)
 		}
 	}
 	
-	// Unregister thread's CP time pointer
+	// Get the ACS time (will be calculated by subtraction in solvermain.cpp)
+	colony->SetACSTime(colony->GetACSTimerPtr()->Elapsed());
 	CP::UnregisterThreadCPTime();
-	// Unregister thread's ant guessing time pointer
-	CP::UnregisterThreadAntGuessingTime();
 }
 
 // ============================================================================

@@ -47,13 +47,14 @@ class MultiColonyAntSystem : public SudokuSolver
 
     // time / rng / iterations
     Timer solutionTimer;
+    Timer dcmAcoTimer;  // Main DCM-ACO algorithm timer (paused during CP and tracked components)
     float solTime;
+    float dcmAcoTime;  // Time spent in main DCM-ACO algorithm work
     int iterationCount;
     std::mt19937 randGen;
     std::uniform_real_distribution<float> randomDist;
     
     // Timing for multi-colony operations
-    float antGuessingTime;  // Time spent by ants in decision-making
     float cooperativeGameTime;
     float pheromoneFusionTime;
     float publicPathRecommendationTime;
@@ -88,11 +89,11 @@ class MultiColonyAntSystem : public SudokuSolver
 public:
     // Configurable number of colonies and ACS colonies
     MultiColonyAntSystem(int antsPerColony, float q0, float rho, float pher0, float bestEvap,
-                         int numColonies, int numACS, float convThreshold, float entropyThreshold)
-        : numColonies(numColonies), numACS(numACS), antsPerColony(antsPerColony), q0(q0), rho(rho), pher0(pher0), bestEvap(bestEvap),
+                        int numColonies, int numACS, float convThreshold, float entropyThreshold)
+       : numColonies(numColonies), numACS(numACS), antsPerColony(antsPerColony), q0(q0), rho(rho), pher0(pher0), bestEvap(bestEvap),
           globalBestPher(0.0f), globalBestVal(0), solTime(0.0f), iterationCount(0),
           convThreshold(convThreshold), entropyThreshold(entropyThreshold),
-          antGuessingTime(0.0f), cooperativeGameTime(0.0f), pheromoneFusionTime(0.0f), publicPathRecommendationTime(0.0f)
+          cooperativeGameTime(0.0f), pheromoneFusionTime(0.0f), publicPathRecommendationTime(0.0f)
     {
         colonies.resize(numColonies);
         randomDist = std::uniform_real_distribution<float>(0.0f, 1.0f);
@@ -116,7 +117,7 @@ public:
     virtual int GetIterationCount() { return iterationCount; }
     
     // Timing getters for multi-colony operations
-    float GetAntGuessingTime() const { return antGuessingTime; }
+    float GetDCMAcoTime() const { return dcmAcoTime; }
     float GetCooperativeGameTime() const { return cooperativeGameTime; }
     float GetPheromoneFusionTime() const { return pheromoneFusionTime; }
     float GetPublicPathRecommendationTime() const { return publicPathRecommendationTime; }

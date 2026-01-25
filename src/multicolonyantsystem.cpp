@@ -50,18 +50,16 @@ void MultiColonyAntSystem::UpdatePheromone(int colonyIdx, Colony &c, const Board
 bool MultiColonyAntSystem::Solve(const Board &puzzle, float maxTime)
 {
     solutionTimer.Reset();
+    dcmAcoTimer.Reset();
     int iter = 0;
     bool solved = false;
     const int nACS = (std::min)(numACS, numColonies);
     
     // Reset timing counters
-    antGuessingTime = 0.0f;
+    dcmAcoTime = 0.0f;
     cooperativeGameTime = 0.0f;
     pheromoneFusionTime = 0.0f;
     publicPathRecommendationTime = 0.0f;
-    
-    // Register ant guessing time pointer for tracking (single-threaded)
-    CP::RegisterThreadAntGuessingTime(&antGuessingTime);
 
     // init colonies
     colonyQ0.resize(numColonies);
@@ -251,10 +249,11 @@ bool MultiColonyAntSystem::Solve(const Board &puzzle, float maxTime)
     for (int c = 0; c < numColonies; ++c)
         ClearPheromone(colonies[c]);
     
-    // Unregister ant guessing time pointer
-    CP::UnregisterThreadAntGuessingTime();
-    
     iterationCount = iter;
+    
+    // Get the DCM-ACO time (will be calculated by subtraction in solvermain.cpp)
+    dcmAcoTime = dcmAcoTimer.Elapsed();
+    
     std::cout << "Number of cycles (multi): " << iter << "\n";
     return solved;
 }

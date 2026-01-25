@@ -38,7 +38,7 @@ MultiColonyThread::MultiColonyThread(int id, int antsPerColony, float q0, float 
                                      int numColonies, int numACS, float convThreshold, float entropyThreshold)
 	: threadId(id), currentIteration(0), iterationBestScore(0), bestSolScore(0),
 	  receivedIterationBestScore(0), receivedBestSolScore(0), numCells(0), numUnits(0), 
-	  cpTime(0.0f), cooperativeGameTime(0.0f), pheromoneFusionTime(0.0f), 
+	  dcmAcoTime(0.0f), cpTime(0.0f), cooperativeGameTime(0.0f), pheromoneFusionTime(0.0f), 
 	  publicPathRecommendationTime(0.0f), communicationTime(0.0f)
 {
 	// Create the multi-colony system
@@ -258,10 +258,11 @@ void MultiThreadMultiColonyAntSystem::ThreadWorker(int threadId, const Board& pu
 	MultiColonyThread* thread = threads[threadId];
 	thread->Initialize(puzzle);  // Initialize already calls ResetAllTimers()
 	
+	// Reset the DCM-ACO timer
+	thread->GetDCMAcoTimerPtr()->Reset();
+	
 	// Register this thread's CP time pointer for per-thread tracking
 	CP::RegisterThreadCPTime(thread->GetCPTimePtr());
-	// Register this thread's ant guessing time pointer for per-thread tracking
-	CP::RegisterThreadAntGuessingTime(thread->GetAntGuessingTimePtr());
 	
 	int iter = 0;
 	
@@ -307,10 +308,9 @@ void MultiThreadMultiColonyAntSystem::ThreadWorker(int threadId, const Board& pu
 			break;
 	}
 	
-	// Unregister thread's CP time pointer
+	// Get the DCM-ACO time (will be calculated by subtraction in solvermain.cpp)
+	thread->SetDCMAcoTime(thread->GetDCMAcoTimerPtr()->Elapsed());
 	CP::UnregisterThreadCPTime();
-	// Unregister thread's ant guessing time pointer
-	CP::UnregisterThreadAntGuessingTime();
 }
 
 

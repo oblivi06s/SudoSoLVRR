@@ -88,7 +88,6 @@ struct WinningThreadTimings
 {
 	int threadId = -1;
 	float cpTime = 0.0f;
-	float antDecisionTime = 0.0f;
 	float communicationTime = 0.0f;
 	float cooperativeGameTime = 0.0f;
 	float pheromoneFusionTime = 0.0f;
@@ -161,7 +160,6 @@ static WinningThreadTimings extractParallelACSTimings(ParallelSudokuAntSystem* s
 			bestScore = score;
 			timings.threadId = static_cast<int>(i);
 			timings.cpTime = subColonies[i]->GetCPTime();
-			timings.antDecisionTime = subColonies[i]->GetAntGuessingTime();
 			timings.communicationTime = subColonies[i]->GetCommunicationTime();
 		}
 	}
@@ -187,7 +185,6 @@ static WinningThreadTimings extractMultiThreadMultiColonyTimings(MultiThreadMult
 			bestScore = score;
 			timings.threadId = static_cast<int>(i);
 			timings.cpTime = threads[i]->GetCPTime();
-			timings.antDecisionTime = threads[i]->GetAntGuessingTime();
 			timings.communicationTime = threads[i]->GetCommunicationTime();
 			timings.cooperativeGameTime = threads[i]->GetCooperativeGameTime();
 			timings.pheromoneFusionTime = threads[i]->GetPheromoneFusionTime();
@@ -391,8 +388,8 @@ int main(int argc, char* argv[])
 	// Multi-colony algorithm parameters (algorithms 4)
 	const int acsColonyCount = args.GetArg("numacs", 3);  // Number of ACS colonies
 	const int totalColonyCount = args.GetArg("numcolonies", acsColonyCount + 1);  // Total colonies (ACS + MMAS)
-	const float convergenceThreshold = args.GetArg("convthreshold", 0.08f);  // Threshold for cooperative game theory
-	const float entropyThreshold = args.GetArg("entropythreshold", 5.0f);  // Threshold for pheromone fusion
+	const float convergenceThreshold = args.GetArg("convthreshold", 0.08f);  // Threshold for public path recommendation
+	const float entropyThreshold = args.GetArg("entropythreshold", 6.0f);  // Threshold for pheromone fusion
 	
 	// Output control flags
 	const bool blank = args.GetArg("blank", false);         // Generate blank puzzle
@@ -526,8 +523,7 @@ int main(int argc, char* argv[])
 	switch (algorithmId)
 	{
 		case 0:  // Single-threaded ACS
-			if (auto* antSolver = dynamic_cast<SudokuAntSystem*>(solver.get()))
-				timings.antDecisionTime = antSolver->GetAntGuessingTime();
+			// No additional timings needed (will calculate ACS time by subtraction)
 			break;
 		
 		case 2:  // Parallel ACS
@@ -538,7 +534,6 @@ int main(int argc, char* argv[])
 		case 3:  // Multi-Colony (single-threaded)
 			if (auto* multiColonySolver = dynamic_cast<MultiColonyAntSystem*>(solver.get()))
 			{
-				timings.antDecisionTime = multiColonySolver->GetAntGuessingTime();
 				timings.cooperativeGameTime = multiColonySolver->GetCooperativeGameTime();
 				timings.pheromoneFusionTime = multiColonySolver->GetPheromoneFusionTime();
 				timings.publicPathRecommendationTime = multiColonySolver->GetPublicPathRecommendationTime();
@@ -577,6 +572,10 @@ int main(int argc, char* argv[])
 		cout << "\"error\":\"" << jsonEscape(errorMessage) << "\",";
 		cout << "\"cp_initial\":" << initialCPTime << ",";
 		cout << "\"cp_ant\":" << timings.cpTime << ",";
+		cout << "\"cooperative_game\":" << timings.cooperativeGameTime << ",";
+		cout << "\"pheromone_fusion\":" << timings.pheromoneFusionTime << ",";
+		cout << "\"public_path\":" << timings.publicPathRecommendationTime << ",";
+		cout << "\"communication\":" << timings.communicationTime << ",";
 		cout << "\"cp_calls\":" << cpCallCount << ",";
 		cout << "\"cp_total\":" << totalCPTime;
 		cout << "}" << endl;
@@ -635,14 +634,19 @@ int main(int argc, char* argv[])
 		// distributed across different components. Each component shows both
 		// absolute time (seconds) and percentage of total solve time.
 		// 
-		// Components displayed depend on algorithm:
-		// - All algorithms: Initial CP, Ant CP, Ant Decision-Making
-		// - Algorithms 3 & 4: + Coop Game, Pheromone Fusion, Public Path
-		// - Algorithms 2 & 4: + Thread Communication
+		// All algorithms show:
+		//   - Initial CP Time
+		//   - Ant CP Time
+		//   - Main Algorithm Time (ACS or DCM-ACO) - calculated by subtraction
+		//   - Communication Time (algorithms 2 & 4 only)
 		// 
-		// Note: Sum of components may not equal 100% due to untracked overhead
-		// (loop control, memory allocation, synchronization, etc.)
-		// See TIMING_DOCUMENTATION.md for details.
+		// For DCM-ACO (algorithms 3 & 4), sub-components are shown for info:
+		//   - Cooperative Game Theory (part of DCM-ACO time)
+		//   - Pheromone Fusion (part of DCM-ACO time)
+		//   - Public Path Recommendation (part of DCM-ACO time)
+		// 
+		// Main algorithm time = Total - Initial CP - Ant CP - Communication
+		// This ensures exactly 100% coverage.
 		// ====================================================================
 		cout << "\n==Time Breakdown==" << endl;
 		
@@ -650,29 +654,48 @@ int main(int argc, char* argv[])
 		float totalTime = (solutionTime > 0.0f) ? solutionTime : 1.0f;
 		float initialCPPercent = (initialCPTime / totalTime) * 100.0f;
 		float antCPPercent = (timings.cpTime / totalTime) * 100.0f;
-		float antDecisionPercent = (timings.antDecisionTime / totalTime) * 100.0f;
 		float coopGamePercent = (timings.cooperativeGameTime / totalTime) * 100.0f;
 		float fusionPercent = (timings.pheromoneFusionTime / totalTime) * 100.0f;
 		float publicPathPercent = (timings.publicPathRecommendationTime / totalTime) * 100.0f;
 		float commPercent = (timings.communicationTime / totalTime) * 100.0f;
 		
+		// Calculate main algorithm time by subtraction
+		// For algorithms 0 & 2: ACS Time = Total - Initial CP - Ant CP [- Communication]
+		// For algorithms 3 & 4: DCM-ACO Time = Total - Initial CP - Ant CP [- Communication]
+		// Note: Coop Game, Fusion, Public Path are INSIDE DCM-ACO time, not subtracted
+		float trackedTime = initialCPTime + timings.cpTime;
+		if (algorithmId == 2 || algorithmId == 4)
+		{
+			trackedTime += timings.communicationTime;
+		}
+		float mainAlgorithmTime = solutionTime - trackedTime;
+		float mainAlgorithmPercent = (mainAlgorithmTime / totalTime) * 100.0f;
+		
 		// Display timing components
 		printTimingLine("Initial CP Time", initialCPTime, initialCPPercent);
 		printTimingLine("Ant CP Time", timings.cpTime, antCPPercent);
-		printTimingLine("Ant Decision Time", timings.antDecisionTime, antDecisionPercent);
 		
-		// Show multi-colony timing (algorithms 3 and 4)
-		if (algorithmId == 3 || algorithmId == 4)
+		// Display main algorithm time (ACS or DCM-ACO)
+		if (algorithmId == 0 || algorithmId == 2)
 		{
+			printTimingLine("ACS Time", mainAlgorithmTime, mainAlgorithmPercent);
+		}
+		else if (algorithmId == 3 || algorithmId == 4)
+		{
+			printTimingLine("DCM-ACO Time", mainAlgorithmTime, mainAlgorithmPercent);
+			// Show sub-components with simple indentation
+			cout << "  - ";
 			printTimingLine("Cooperative Game Time", timings.cooperativeGameTime, coopGamePercent);
+			cout << "  - ";
 			printTimingLine("Pheromone Fusion Time", timings.pheromoneFusionTime, fusionPercent);
+			cout << "  - ";
 			printTimingLine("Public Path Recommendation Time", timings.publicPathRecommendationTime, publicPathPercent);
 		}
 		
 		// Show communication time for multi-threaded algorithms
 		if (algorithmId == 2 || algorithmId == 4)
 		{
-			printTimingLine("Communication Between Threads Time", timings.communicationTime, commPercent);
+			printTimingLine("Communication Time", timings.communicationTime, commPercent);
 		}
 		
 		cout << fixed << setprecision(6);

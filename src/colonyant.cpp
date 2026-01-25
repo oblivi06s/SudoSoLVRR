@@ -1,7 +1,6 @@
 #include "colonyant.h"
 #include "multicolonyantsystem.h"
 #include "constraintpropagation.h"
-#include <chrono>
 
 void ColonyAnt::InitSolution(const Board &puzzle, int startCell)
 {
@@ -25,9 +24,6 @@ void ColonyAnt::StepSolution()
     }
     else if (!sol.GetCell(iCell).Fixed())
     {
-        // Time the decision-making phase (ant guessing)
-        auto guessingStartTime = std::chrono::steady_clock::now();
-        
         // make a choice from the options
         ValueSet choice = ValueSet(sol.GetNumUnits(), 1);
         if (parent->random() < parent->Getq0(colonyIndex))
@@ -50,19 +46,7 @@ void ColonyAnt::StepSolution()
                 choice <<= 1;
             }
             
-            // End timing for decision-making
-            auto guessingEndTime = std::chrono::steady_clock::now();
-            auto guessingDuration = std::chrono::duration_cast<std::chrono::duration<double>>(guessingEndTime - guessingStartTime);
-            float guessingElapsed = (float)guessingDuration.count();
-            CP::AddAntGuessingTime(guessingElapsed);
-            
-            // Time CP operation
-            auto startTime = std::chrono::steady_clock::now();
             SetCellAndPropagate(sol, iCell, best);
-            auto endTime = std::chrono::steady_clock::now();
-            auto duration = std::chrono::duration_cast<std::chrono::duration<double>>(endTime - startTime);
-            float elapsed = (float)duration.count();
-            CP::AddTime(elapsed);
             
             // local pheromone update
             parent->LocalPheromoneUpdate(colonyIndex, iCell, best.Index());
@@ -90,19 +74,7 @@ void ColonyAnt::StepSolution()
             {
                 if (roulette[i] > rouletteVal)
                 {
-                    // End timing for decision-making
-                    auto guessingEndTime = std::chrono::steady_clock::now();
-                    auto guessingDuration = std::chrono::duration_cast<std::chrono::duration<double>>(guessingEndTime - guessingStartTime);
-                    float guessingElapsed = (float)guessingDuration.count();
-                    CP::AddAntGuessingTime(guessingElapsed);
-                    
-                    // Time CP operation
-                    auto startTime = std::chrono::steady_clock::now();
                     SetCellAndPropagate(sol, iCell, rouletteVals[i]);
-                    auto endTime = std::chrono::steady_clock::now();
-                    auto duration = std::chrono::duration_cast<std::chrono::duration<double>>(endTime - startTime);
-                    float elapsed = (float)duration.count();
-                    CP::AddTime(elapsed);
                     
                     // local pheromone update
                     parent->LocalPheromoneUpdate(colonyIndex, iCell, rouletteVals[i].Index());
