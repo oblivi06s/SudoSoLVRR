@@ -16,11 +16,11 @@ class SudokuAntSystem : public SudokuSolver, public IAntColony
 	float bestEvap;
 	Board bestSol;
 	float bestPher;
-	int bestVal;
+	int iterationsCompleted;
 	Timer solutionTimer;
+	Timer acsTimer;  // Main ACS algorithm timer (paused during CP)
 	float solTime;
-	float cpTime;  // Total CP time (seconds)
-	
+	float acsTime;  // Time spent in main ACS algorithm work
 
 	std::vector<SudokuAnt*> antList;
 	std::mt19937 randGen; 
@@ -35,7 +35,7 @@ class SudokuAntSystem : public SudokuSolver, public IAntColony
 
 public:
 	SudokuAntSystem(int numAnts, float q0, float rho, float pher0, float bestEvap) : 
-		numAnts(numAnts), q0(q0), rho(rho), pher0(pher0), bestEvap(bestEvap)
+		numAnts(numAnts), q0(q0), rho(rho), pher0(pher0), bestEvap(bestEvap), iterationsCompleted(0)
 	{
 		for ( int i = 0; i < numAnts; i++ )
 			antList.push_back(new SudokuAnt(this));
@@ -48,15 +48,14 @@ public:
 		for (auto a : antList)
 			delete a;
 	}
-
 	virtual bool Solve(const Board& puzzle, float maxTime );
 	virtual float GetSolutionTime() { return solTime; }
 	virtual const Board& GetSolution() { return bestSol; }
-	
+	int GetIterationsCompleted() { return iterationsCompleted; }
+	float GetACSTime() const { return acsTime; }
 	// helpers for ants
 	inline float Getq0() { return q0; }
 	inline float random() { return randomDist(randGen); }
 	inline float Pher(int i, int j) { return pher[i][j]; }
 	void LocalPheromoneUpdate(int iCell, int iChoice);
-	void PrintCPTime() const { std::cout << "CPTime: " << cpTime << "s" << std::endl; }
 };

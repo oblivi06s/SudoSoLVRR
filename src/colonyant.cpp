@@ -1,7 +1,6 @@
 #include "colonyant.h"
 #include "multicolonyantsystem.h"
-#include "CP.h"
-#include <chrono>
+#include "constraintpropagation.h"
 
 void ColonyAnt::InitSolution(const Board &puzzle, int startCell)
 {
@@ -47,13 +46,7 @@ void ColonyAnt::StepSolution()
                 choice <<= 1;
             }
             
-            // Time CP operation
-            auto startTime = std::chrono::steady_clock::now();
-            sol.SetCell(iCell, best);
-            auto endTime = std::chrono::steady_clock::now();
-            auto duration = std::chrono::duration_cast<std::chrono::duration<double>>(endTime - startTime);
-            float elapsed = (float)duration.count();
-            CP::AddTime(elapsed);
+            SetCellAndPropagate(sol, iCell, best);
             
             // local pheromone update
             parent->LocalPheromoneUpdate(colonyIndex, iCell, best.Index());
@@ -81,13 +74,7 @@ void ColonyAnt::StepSolution()
             {
                 if (roulette[i] > rouletteVal)
                 {
-                    // Time CP operation
-                    auto startTime = std::chrono::steady_clock::now();
-                    sol.SetCell(iCell, rouletteVals[i]);
-                    auto endTime = std::chrono::steady_clock::now();
-                    auto duration = std::chrono::duration_cast<std::chrono::duration<double>>(endTime - startTime);
-                    float elapsed = (float)duration.count();
-                    CP::AddTime(elapsed);
+                    SetCellAndPropagate(sol, iCell, rouletteVals[i]);
                     
                     // local pheromone update
                     parent->LocalPheromoneUpdate(colonyIndex, iCell, rouletteVals[i].Index());

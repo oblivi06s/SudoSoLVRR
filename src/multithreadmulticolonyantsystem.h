@@ -39,7 +39,9 @@ private:
 	int currentIteration;
 	int numCells;  // Number of cells in the puzzle
 	int numUnits;  // Number of units (values per cell)
-	float cpTime;  // Total CP time for this thread (seconds)
+	Timer dcmAcoTimer;  // Main DCM-ACO algorithm timer (paused during CP and tracked components)
+	float dcmAcoTime;  // Time spent in main DCM-ACO algorithm work (seconds)
+	std::atomic<float> cpTime;  // Total CP time for this thread (atomic for thread-safe accumulation)
 	float cooperativeGameTime;      // Total Cooperative Game Theory time (seconds)
 	float pheromoneFusionTime;      // Total Pheromone Fusion time (seconds)
 	float publicPathRecommendationTime;  // Total Public Path Recommendation time (seconds)
@@ -69,9 +71,12 @@ public:
 	int GetBestSolScore() const { return bestSolScore; }
 	int GetCurrentIteration() const { return currentIteration; }
 	void SetCurrentIteration(int iter) { currentIteration = iter; }
-	float GetCPTime() const { return cpTime; }
-	void ResetCPTime() { cpTime = 0.0f; }
-	float* GetCPTimePtr() { return &cpTime; }
+	float GetDCMAcoTime() const { return dcmAcoTime; }
+	float GetCPTime() const { return cpTime.load(); }
+	void ResetCPTime() { cpTime.store(0.0f); }
+	std::atomic<float>* GetCPTimePtr() { return &cpTime; }
+	Timer* GetDCMAcoTimerPtr() { return &dcmAcoTimer; }  // For pause/resume access
+	void SetDCMAcoTime(float time) { dcmAcoTime = time; }  // For setting the final time
 	
 	float GetCooperativeGameTime() const { return cooperativeGameTime; }
 	float GetPheromoneFusionTime() const { return pheromoneFusionTime; }
@@ -80,7 +85,8 @@ public:
 	void AddCommunicationTime(float elapsed) { communicationTime += elapsed; }
 	void ResetAllTimers() 
 	{ 
-		cpTime = 0.0f;
+		dcmAcoTime = 0.0f;
+		cpTime.store(0.0f);
 		cooperativeGameTime = 0.0f;
 		pheromoneFusionTime = 0.0f;
 		publicPathRecommendationTime = 0.0f;
@@ -148,4 +154,8 @@ public:
 	int GetIterationsCompleted() { return iterationsCompleted; }
 	bool GetCommunicationOccurred() { return communicationOccurred; }
 	void PrintThreadDetails();
+	
+	// Access to threads for per-thread statistics
+	const std::vector<MultiColonyThread*>& GetThreads() const { return threads; }
+	MultiColonyThread* GetThread(int index) const { return (index >= 0 && index < (int)threads.size()) ? threads[index] : nullptr; }
 };

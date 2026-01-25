@@ -1,9 +1,11 @@
 #include "multicolonyantsystem.h"
+#include "constraintpropagation.h"
 #include <iostream>
 #include <algorithm>
 #include <climits>
 #include <limits>
 #include <cmath>
+#include <chrono>
 
 void MultiColonyAntSystem::InitPheromone(Colony &c, int nNumCells, int valuesPerCell)
 {
@@ -48,9 +50,16 @@ void MultiColonyAntSystem::UpdatePheromone(int colonyIdx, Colony &c, const Board
 bool MultiColonyAntSystem::Solve(const Board &puzzle, float maxTime)
 {
     solutionTimer.Reset();
+    dcmAcoTimer.Reset();
     int iter = 0;
     bool solved = false;
     const int nACS = (std::min)(numACS, numColonies);
+    
+    // Reset timing counters
+    dcmAcoTime = 0.0f;
+    cooperativeGameTime = 0.0f;
+    pheromoneFusionTime = 0.0f;
+    publicPathRecommendationTime = 0.0f;
 
     // init colonies
     colonyQ0.resize(numColonies);
@@ -186,9 +195,23 @@ bool MultiColonyAntSystem::Solve(const Board &puzzle, float maxTime)
                 }
             }
             if (hasLowEntropy)
+            {
+                // Time Pheromone Fusion
+                auto startTime = std::chrono::steady_clock::now();
                 ApplyPheromoneFusion(acsIdx, mmasIdx);
+                auto endTime = std::chrono::steady_clock::now();
+                auto duration = std::chrono::duration_cast<std::chrono::duration<double>>(endTime - startTime);
+                pheromoneFusionTime += (float)duration.count();
+            }
             else
+            {
+                // Time Cooperative Game Theory
+                auto startTime = std::chrono::steady_clock::now();
                 ACSCooperativeGameAllocate(acsIdx, acsAllocated);
+                auto endTime = std::chrono::steady_clock::now();
+                auto duration = std::chrono::duration_cast<std::chrono::duration<double>>(endTime - startTime);
+                cooperativeGameTime += (float)duration.count();
+            }
         }
 
         // Apply pheromone updates per type
@@ -205,7 +228,14 @@ bool MultiColonyAntSystem::Solve(const Board &puzzle, float maxTime)
         }
 
         // Public path recommendation (only applied when convergence speed is low, checked inside function)
-        ApplyPublicPathRecommendation(iter, acsIdx, mmasIdx);
+        {
+            // Time Public Path Recommendation
+            auto startTime = std::chrono::steady_clock::now();
+            ApplyPublicPathRecommendation(iter, acsIdx, mmasIdx);
+            auto endTime = std::chrono::steady_clock::now();
+            auto duration = std::chrono::duration_cast<std::chrono::duration<double>>(endTime - startTime);
+            publicPathRecommendationTime += (float)duration.count();
+        }
 
         ++iter;
         if ((iter % 100) == 0)
@@ -218,7 +248,12 @@ bool MultiColonyAntSystem::Solve(const Board &puzzle, float maxTime)
 
     for (int c = 0; c < numColonies; ++c)
         ClearPheromone(colonies[c]);
+    
     iterationCount = iter;
+    
+    // Get the DCM-ACO time (will be calculated by subtraction in solvermain.cpp)
+    dcmAcoTime = dcmAcoTimer.Elapsed();
+    
     std::cout << "Number of cycles (multi): " << iter << "\n";
     return solved;
 }
