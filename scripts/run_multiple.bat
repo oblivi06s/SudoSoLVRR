@@ -4,15 +4,15 @@ REM Usage: scripts\run_multiple.bat
 
 REM Configuration
 set NUM_RUNS=5
-set INSTANCES_ROOT=instances/paquita-database
+set INSTANCES_ROOT=instances/16x16-database
 set ALGORITHMS=0 2 3 4
 set ANTS_SINGLE=10
 set ANTS_MULTI=3
 set NUM_ACS=2
 set NUM_COLONIES=3
 set THREADS=3
-set TIMEOUT=5
-set OUTPUT_DIR=results/For_9x9
+set TIMEOUT=20
+set OUTPUT_DIR=results/For_16x16
 
 REM Create output directory if it doesn't exist
 if not exist "%OUTPUT_DIR%" (

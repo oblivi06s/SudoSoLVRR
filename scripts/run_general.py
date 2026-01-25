@@ -339,8 +339,8 @@ def parse_solver_output(stdout: str, stderr: str) -> Tuple[Optional[bool], Optio
             public_path_time = float(public_path_match.group(1))
             continue
         
-        # Format: "Communication Between Threads Time: X s (Y%)"
-        comm_time_match = re.search(r"Communication Between Threads Time:\s*([0-9]*\.?[0-9]+)\s+s", line)
+        # Format: "Communication Time: X s (Y%)"
+        comm_time_match = re.search(r"Communication Time:\s*([0-9]*\.?[0-9]+)\s+s", line)
         if comm_time_match:
             communication_time = float(comm_time_match.group(1))
             continue
