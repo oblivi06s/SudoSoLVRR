@@ -121,7 +121,7 @@ def iter_all_instance_files(repo_root: Path) -> Iterable[Path]:
 
 def parse_metadata(path: Path) -> InstanceMetadata:
     name = path.stem
-    match = re.match(r"inst(?P<size>[0-9x]+)_(?P<fixed>\d+)_(?P<idx>\d+)", name)
+    match = re.match(r"ins(?P<size>[0-9x]+)_(?P<fixed>\d+)_(?P<idx>\d+)", name)
     size = None
     fixed = None
     idx = None
