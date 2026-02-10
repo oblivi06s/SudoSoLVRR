@@ -62,7 +62,7 @@ MultiColonyThread::~MultiColonyThread()
 MultiThreadMultiColonyAntSystem::MultiThreadMultiColonyAntSystem(int nThreads, int antsPerColony,
 	float q0, float rho, float pher0, float bestEvap, int numColonies, int numACS,
 	float convThreshold, float entropyThreshold)
-	: numThreads(nThreads), maxTime(120.0f),
+	: numThreads(nThreads), maxTime(0.0f),
 	  globalBestScore(0), iterationsCompleted(0), communicationOccurred(false), 
 	  solTime(0.0f), barrier(0), stopFlag(false)
 {
@@ -490,7 +490,7 @@ void MultiColonyThread::RunIteration(const Board& puzzle)
 	}
 	
 	// Note: currentIteration is now set by ThreadWorker before calling RunIteration
-	// so we don't increment it here to avoid double-counting
+	// so don't increment it here to avoid double-counting
 }
 
 void MultiThreadMultiColonyAntSystem::PerformBarrierSynchronization(const Board& puzzle)
