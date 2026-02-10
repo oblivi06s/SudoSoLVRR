@@ -621,6 +621,7 @@ def main() -> int:
     parser.add_argument("--rho", type=float, default=0.9, help="Override ACS rho parameter.")
     parser.add_argument("--evap", type=float, default=0.005, help="Override ACS evaporation parameter.")
     parser.add_argument("--limit", type=int, default=None, help="Optional cap on number of instances to process.")
+    parser.add_argument("--start", type=int, default=0, help="Skip the first N instances (default: 0). Useful for running different ranges in parallel terminals.")
     parser.add_argument("--single-instance", action="store_true", help="Run only the first matching instance (useful for testing).")
     parser.add_argument("--instance", type=str, default=None, help="Run a specific instance file (e.g., instances/9x9/puzzle1.txt). Overrides --instances-root and --single-instance.")
     parser.add_argument("--puzzle-size", dest="puzzle_sizes", nargs="+", choices=["9x9", "16x16", "25x25", "36x36"], help="Filter by puzzle size(s), e.g. --puzzle-size 25x25.")
@@ -684,8 +685,17 @@ def main() -> int:
         if args.single_instance:
             metadata_list = metadata_list[:1]
             print(f"Running single instance mode: {metadata_list[0].relative_path}")
-        elif args.limit is not None:
-            metadata_list = metadata_list[: args.limit]
+        else:
+            # Apply --start if specified
+            if args.start > 0:
+                if args.start >= len(metadata_list):
+                    print(f"Error: --start {args.start} is >= total instances {len(metadata_list)}", file=sys.stderr)
+                    return 1
+                metadata_list = metadata_list[args.start:]
+                print(f"Skipping first {args.start} instances, processing {len(metadata_list)} instances")
+            # Apply --limit if specified
+            if args.limit is not None:
+                metadata_list = metadata_list[:args.limit]
     else:
         # Default: run both general and logic-solvable instances
         try:
@@ -716,8 +726,17 @@ def main() -> int:
         if args.single_instance:
             metadata_list = metadata_list[:1]
             print(f"Running single instance mode: {metadata_list[0].relative_path}")
-        elif args.limit is not None:
-            metadata_list = metadata_list[: args.limit]
+        else:
+            # Apply --start if specified
+            if args.start > 0:
+                if args.start >= len(metadata_list):
+                    print(f"Error: --start {args.start} is >= total instances {len(metadata_list)}", file=sys.stderr)
+                    return 1
+                metadata_list = metadata_list[args.start:]
+                print(f"Skipping first {args.start} instances, processing {len(metadata_list)} instances")
+            # Apply --limit if specified
+            if args.limit is not None:
+                metadata_list = metadata_list[:args.limit]
 
     # Ensure args.alg is a list
     algorithms = args.alg if isinstance(args.alg, list) else [args.alg]

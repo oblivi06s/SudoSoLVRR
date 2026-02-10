@@ -66,12 +66,8 @@ MultiThreadMultiColonyAntSystem::MultiThreadMultiColonyAntSystem(int nThreads, i
 	  globalBestScore(0), iterationsCompleted(0), communicationOccurred(false), 
 	  solTime(0.0f), barrier(0), stopFlag(false)
 {
-	// Input validation
-	if (numThreads < 3)
-	{
-		std::cerr << "Warning: numThreads must be >= 3 for proper parallel execution. Setting to 3." << std::endl;
-		numThreads = 3;
-	}
+	// Allow threads=1 (behaves like Algorithm 3)
+	// No minimum thread requirement
 	
 	// Create N independent threads (each with its own MultiColonyAntSystem)
 	for (int i = 0; i < numThreads; i++)
@@ -266,12 +262,20 @@ void MultiThreadMultiColonyAntSystem::ThreadWorker(int threadId, const Board& pu
 	
 	int iter = 0;
 	
+	// === OPTIMIZATION: Use local bool for single thread to avoid atomic overhead ===
+	bool shouldStop = false;
+	bool useLocalStop = (numThreads == 1);
+	
 	// Main iteration loop
-	while (!stopFlag.load())
+	while (useLocalStop ? !shouldStop : !stopFlag.load())
 	{
 		// Check termination conditions
 		if (CheckTimeout())
+		{
+			if (useLocalStop)
+				shouldStop = true;
 			break;
+		}
 		
 		iter++;
 		// Update currentIteration before running iteration so it's synchronized
@@ -282,8 +286,16 @@ void MultiThreadMultiColonyAntSystem::ThreadWorker(int threadId, const Board& pu
 		thread->RunIteration(puzzle);
 		
 		// Communication phase (periodic barrier synchronization)
-		int interval = CalculateInterval(iter);
-		if (iter % interval == 0)
+		// Skip communication if only 1 thread (behaves like Algorithm 3)
+		bool shouldCommunicate = false;
+		if (numThreads > 1)
+		{
+			int interval = CalculateInterval(iter);
+			shouldCommunicate = (iter % interval == 0);
+		}
+		// If numThreads == 1, shouldCommunicate stays false (behaves like Algorithm 3)
+		
+		if (shouldCommunicate)
 		{
 			// Time Communication Between Threads
 			auto startTime = std::chrono::steady_clock::now();
@@ -296,7 +308,7 @@ void MultiThreadMultiColonyAntSystem::ThreadWorker(int threadId, const Board& pu
 			// Only MMAS colonies receive this update (ACS colonies are not updated)
 			thread->UpdatePheromoneWithCommunication();
 			
-			if (stopFlag.load())
+			if (useLocalStop ? shouldStop : stopFlag.load())
 				break;
 		}
 		
@@ -305,7 +317,11 @@ void MultiThreadMultiColonyAntSystem::ThreadWorker(int threadId, const Board& pu
 		
 		// Check if solution found
 		if (CheckSolutionFound(thread))
+		{
+			if (useLocalStop)
+				shouldStop = true;
 			break;
+		}
 	}
 	
 	// Get the DCM-ACO time (will be calculated by subtraction in solvermain.cpp)
@@ -697,10 +713,10 @@ void MultiColonyThread::UpdatePheromoneWithCommunication()
 
 int MultiThreadMultiColonyAntSystem::CalculateInterval(int iteration)
 {
-	if (iteration < 200)
-		return 100;
+	if (iteration < 300)
+		return 20;
 	else
-		return 10;
+		return -1;
 }
 
 std::vector<int> MultiThreadMultiColonyAntSystem::GenerateMatchArray()
@@ -721,7 +737,8 @@ bool MultiThreadMultiColonyAntSystem::CheckTimeout()
 	if (solutionTimer.Elapsed() >= maxTime)
 	{
 		stopFlag.store(true);
-		commCV.notify_all();
+		if (numThreads > 1)
+			commCV.notify_all();  // Only needed for multiple threads
 		return true;
 	}
 	return false;
@@ -752,7 +769,8 @@ bool MultiThreadMultiColonyAntSystem::CheckSolutionFound(MultiColonyThread* thre
 	if (thread->GetBestSolScore() == thread->GetBestSol().CellCount())
 	{
 		stopFlag.store(true);
-		commCV.notify_all();
+		if (numThreads > 1)
+			commCV.notify_all();  // Only needed for multiple threads
 		return true;
 	}
 	return false;
