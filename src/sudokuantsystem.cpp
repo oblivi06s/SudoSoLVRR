@@ -158,6 +158,9 @@ bool SudokuAntSystem::Solve(const Board& puzzle, float maxTime )
 	
 	iterationsCompleted = iter;
 	
+	// Always capture solution time, regardless of success/failure
+	solTime = solutionTimer.Elapsed();
+	
 	// Get the ACS time (will be calculated by subtraction in solvermain.cpp)
 	acsTime = acsTimer.Elapsed();
 	

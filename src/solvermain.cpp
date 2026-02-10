@@ -383,13 +383,13 @@ int main(int argc, char* argv[])
 	const float evaporationRate = args.GetArg("evap", 0.005f);  // Pheromone evaporation rate
 	
 	// Parallel algorithm parameters (algorithms 2, 4)
-	const int threadCount = args.GetArg("threads", 4);  // Number of parallel threads
+	const int threadCount = args.GetArg("threads", 3);  // Number of parallel threads
 	
 	// Multi-colony algorithm parameters (algorithms 4)
 	const int acsColonyCount = args.GetArg("numacs", 3);  // Number of ACS colonies
 	const int totalColonyCount = args.GetArg("numcolonies", acsColonyCount + 1);  // Total colonies (ACS + MMAS)
 	const float convergenceThreshold = args.GetArg("convthreshold", 0.08f);  // Threshold for public path recommendation
-	const float entropyThreshold = args.GetArg("entropythreshold", 6.0f);  // Threshold for pheromone fusion
+	const float entropyThreshold = args.GetArg("entropythreshold", 8.0f);  // Threshold for pheromone fusion
 	
 	// Output control flags
 	const bool blank = args.GetArg("blank", false);         // Generate blank puzzle

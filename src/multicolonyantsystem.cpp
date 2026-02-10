@@ -251,6 +251,9 @@ bool MultiColonyAntSystem::Solve(const Board &puzzle, float maxTime)
     
     iterationCount = iter;
     
+    // Always capture solution time, regardless of success/failure
+    solTime = solutionTimer.Elapsed();
+    
     // Get the DCM-ACO time (will be calculated by subtraction in solvermain.cpp)
     dcmAcoTime = dcmAcoTimer.Elapsed();
     
