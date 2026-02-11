@@ -9,7 +9,7 @@
 #include "timer.h"
 #include "sudokusolver.h"
 
-// Forward declaration - allow friend declaration
+// Forward declaration - must be before multicolonyantsystem.h to allow friend declaration
 class MultiColonyAntSystem;
 
 #include "multicolonyantsystem.h"
