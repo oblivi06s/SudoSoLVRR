@@ -153,15 +153,11 @@ void MultiColonyThread::Initialize(const Board& puzzle)
 		{
 			float rho_mmas = mcas->colonyRho[c];
 			float best_pheromone_toAdd = mcas->pher0;
-			float n = (float)valuesPerCell;
+			float n = (float)numCells;
 			mcas->colonies[c].tauMax = best_pheromone_toAdd / rho_mmas;
 			mcas->colonies[c].tauMin = mcas->colonies[c].tauMax / (2.0f * n);
 		}
-		else // ACS
-		{
-			mcas->colonies[c].tauMax = mcas->colonies[c].tau0 * 10.0f;
-			mcas->colonies[c].tauMin = mcas->colonies[c].tau0 * 0.01f;
-		}
+		
 		mcas->colonies[c].lastImproveIter = 0;
 		
 		// Clear old ants
