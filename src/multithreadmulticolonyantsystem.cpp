@@ -311,6 +311,12 @@ void MultiThreadMultiColonyAntSystem::ThreadWorker(int threadId, const Board& pu
 			if (useLocalStop ? shouldStop : stopFlag.load())
 				break;
 		}
+		else
+		{
+			// No communication this iteration -> apply normal MMAS pheromone update
+			// (ACS updates are already handled inside RunIteration)
+			thread->UpdateMmasPheromoneLocal();
+		}
 		
 		// Report progress
 		ReportProgress(threadId, iter, thread, puzzle);
@@ -482,42 +488,31 @@ void MultiColonyThread::RunIteration(const Board& puzzle)
 			}
 		}
 	}
-
-	// Check MMAS convergence speed: split by threshold and apply appropriate mechanism
+	
+	// Check MMAS convergence speed: apply appropriate mechanism
 	// Low convergence speed (< threshold) -> public path recommendation
-	// High convergence speed (>= threshold) -> update pheromone
+	// High convergence speed (>= threshold) -> update pheromone (handled in ThreadWorker if no communication)
 	if (!mmasIdx.empty())
 	{
-		std::vector<int> mmasLowConv;   // Below threshold -> public path recommendation
-		std::vector<int> mmasHighConv;  // Above threshold -> update pheromone
+		int mmasCidx = mmasIdx[0];  // Single MMAS colony
+		// convergence rate con_t = iter_opt / iter_t
+		float con_t = (currentIteration > 0 ? ((float)mcas->colonies[mmasCidx].lastImproveIter / (float)currentIteration) : 1.0f);
 		
-		// Split MMAS colonies by convergence speed
-		for (int cidx : mmasIdx)
+		if (con_t < mcas->convThreshold)
 		{
-			// convergence rate con_t = iter_opt / iter_t
-			float con_t = (currentIteration > 0 ? ((float)mcas->colonies[cidx].lastImproveIter / (float)currentIteration) : 1.0f);
-			if (con_t < mcas->convThreshold)
-				mmasLowConv.push_back(cidx);
-			else
-				mmasHighConv.push_back(cidx);
+			// Low convergence speed -> public path recommendation
+			if (!acsIdx.empty())
+			{
+				// Time Public Path Recommendation
+				auto startTime = std::chrono::steady_clock::now();
+				mcas->ApplyPublicPathRecommendation(currentIteration, acsIdx, std::vector<int>{mmasCidx});
+				auto endTime = std::chrono::steady_clock::now();
+				auto duration = std::chrono::duration_cast<std::chrono::duration<double>>(endTime - startTime);
+				publicPathRecommendationTime += (float)duration.count();
+			}
 		}
-		
-		// Apply public path recommendation to low convergence speed colonies
-		if (!mmasLowConv.empty() && !acsIdx.empty())
-		{
-			// Time Public Path Recommendation
-			auto startTime = std::chrono::steady_clock::now();
-			mcas->ApplyPublicPathRecommendation(currentIteration, acsIdx, mmasLowConv);
-			auto endTime = std::chrono::steady_clock::now();
-			auto duration = std::chrono::duration_cast<std::chrono::duration<double>>(endTime - startTime);
-			publicPathRecommendationTime += (float)duration.count();
-		}
-		
-		// Update pheromone for high convergence speed colonies
-		for (int c : mmasHighConv)
-		{
-			mcas->UpdatePheromone(c, mcas->colonies[c], mcas->colonies[c].bestSol, mcas->colonies[c].bestPher);
-		}
+		// Note: High convergence speed -> normal UpdatePheromone is handled in ThreadWorker
+		// (either via UpdatePheromoneWithCommunication or UpdateMmasPheromoneLocal)
 	}
 	
 	// Note: currentIteration is now set by ThreadWorker before calling RunIteration
@@ -739,6 +734,47 @@ void MultiColonyThread::UpdatePheromoneWithCommunication()
 		// Clamp pheromone values for MMAS (respect Max-Min bounds)
 		mcas->ClampPheromone(colony);
 	}
+}
+
+// ----------------------------------------------------------------------------
+// UpdateMmasPheromoneLocal: Standard MMAS pheromone update when no communication
+// Note: PublicPathRecommendation is already handled in RunIteration for low convergence cases
+// This method only handles normal UpdatePheromone for high convergence speed cases
+// ----------------------------------------------------------------------------
+void MultiColonyThread::UpdateMmasPheromoneLocal()
+{
+	MultiColonyAntSystem* mcas = multiColonySystem;
+
+	// Find the (single) MMAS colony (type == 1)
+	int mmasIdx = -1;
+	for (int c = 0; c < mcas->numColonies; ++c)
+	{
+		if (mcas->colonies[c].type == 1)
+		{
+			mmasIdx = c;
+			break;
+		}
+	}
+
+	if (mmasIdx < 0)
+		return;  // No MMAS colony found
+
+	// Check convergence speed: only update if high convergence
+	// (Low convergence already got PublicPathRecommendation in RunIteration)
+	float con_t = (currentIteration > 0 ? ((float)mcas->colonies[mmasIdx].lastImproveIter / (float)currentIteration) : 1.0f);
+	
+	if (con_t >= mcas->convThreshold)
+	{
+		// High convergence speed -> normal pheromone update
+		mcas->UpdatePheromone(mmasIdx,
+		                      mcas->colonies[mmasIdx],
+		                      mcas->colonies[mmasIdx].bestSol,
+		                      mcas->colonies[mmasIdx].bestPher);
+	}
+
+
+	// Note: Low convergence speed already got PublicPathRecommendation in RunIteration
+
 }
 
 
