@@ -95,11 +95,7 @@ bool MultiColonyAntSystem::Solve(const Board &puzzle, float maxTime)
             colonies[c].tauMax = best_pheromone_toAdd / rho_mmas;
             colonies[c].tauMin = colonies[c].tauMax / (2.0f * n);
         }
-        else // ACS colonies can keep simple initial bounds
-        {
-            colonies[c].tauMax = colonies[c].tau0 * 10.0f;
-            colonies[c].tauMin = colonies[c].tau0 * 0.01f;
-        }
+
         colonies[c].lastImproveIter = 0;
         // create ants
         for (int i = 0; i < antsPerColony; i++)
@@ -238,7 +234,7 @@ bool MultiColonyAntSystem::Solve(const Board &puzzle, float maxTime)
         // Note: Only 1 MMAS colony, so no need to split into vectors
         if (!mmasIdx.empty())
         {
-            int mmasCidx = mmasIdx[0];  // Single MMAS colony
+            int mmasCidx = mmasIdx[0];  // MMAS colony
             // convergence rate con_t = iter_opt / iter_t
             float con_t = (iter > 0 ? ((float)colonies[mmasCidx].lastImproveIter / (float)iter) : 1.0f);
             
