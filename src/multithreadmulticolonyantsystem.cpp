@@ -61,10 +61,12 @@ MultiColonyThread::~MultiColonyThread()
 // ----------------------------------------------------------------------------
 MultiThreadMultiColonyAntSystem::MultiThreadMultiColonyAntSystem(int nThreads, int antsPerColony,
 	float q0, float rho, float pher0, float bestEvap, int numColonies, int numACS,
-	float convThreshold, float entropyThreshold)
+	float convThreshold, float entropyThreshold,
+	int commEarlyInterval, int commLateInterval, int commThreshold)
 	: numThreads(nThreads), maxTime(120.0f),
 	  globalBestScore(0), iterationsCompleted(0), communicationOccurred(false), 
-	  solTime(0.0f), barrier(0), stopFlag(false)
+	  solTime(0.0f), barrier(0), stopFlag(false),
+	  commEarlyInterval(commEarlyInterval), commLateInterval(commLateInterval), commThreshold(commThreshold)
 {
 	// Allow threads=1 (behaves like Algorithm 3)
 	// No minimum thread requirement
@@ -776,10 +778,10 @@ void MultiColonyThread::UpdateMmasPheromoneLocal()
 
 int MultiThreadMultiColonyAntSystem::CalculateInterval(int iteration)
 {
-	if (iteration < 200)
-		return 100;
+	if (iteration < commThreshold)
+		return commEarlyInterval;
 	else
-		return 10;
+		return commLateInterval;
 }
 
 std::vector<int> MultiThreadMultiColonyAntSystem::GenerateMatchArray()

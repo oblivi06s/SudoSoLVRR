@@ -128,6 +128,11 @@ private:
 	std::atomic<int> barrier;
 	std::atomic<bool> stopFlag;
 	
+	// Communication interval parameters
+	int commEarlyInterval;  // Communication interval for iterations < commThreshold
+	int commLateInterval;   // Communication interval for iterations >= commThreshold
+	int commThreshold;      // Iteration number when switching from early to late interval
+	
 	// Communication helpers
 	int CalculateInterval(int iteration);
 	std::vector<int> GenerateMatchArray();
@@ -148,7 +153,8 @@ private:
 public:
 	MultiThreadMultiColonyAntSystem(int numThreads, int antsPerColony, float q0, float rho,
 	                             float pher0, float bestEvap, int numColonies, int numACS,
-	                             float convThreshold, float entropyThreshold);
+	                             float convThreshold, float entropyThreshold,
+	                             int commEarlyInterval = 100, int commLateInterval = 10, int commThreshold = 200);
 	~MultiThreadMultiColonyAntSystem();
 	
 	virtual bool Solve(const Board& puzzle, float maxTime);

@@ -385,6 +385,11 @@ int main(int argc, char* argv[])
 	// Parallel algorithm parameters (algorithms 2, 4)
 	const int threadCount = args.GetArg("threads", 3);  // Number of parallel threads
 	
+	// Communication interval parameters (algorithms 2, 4)
+	const int commEarlyInterval = args.GetArg("comm-early-interval", 100);  // Communication interval for early iterations
+	const int commLateInterval = args.GetArg("comm-late-interval", 10);     // Communication interval for late iterations
+	const int commThreshold = args.GetArg("comm-threshold", 200);           // Iteration threshold for switching intervals
+	
 	// Multi-colony algorithm parameters (algorithms 4)
 	const int acsColonyCount = args.GetArg("numacs", 3);  // Number of ACS colonies
 	const int totalColonyCount = args.GetArg("numcolonies", acsColonyCount + 1);  // Total colonies (ACS + MMAS)
@@ -441,7 +446,8 @@ int main(int argc, char* argv[])
 	else if (algorithmId == 2)
 	{
 		// Algorithm 2: Parallel ACS with multiple sub-colonies
-		solver = make_unique<ParallelSudokuAntSystem>(threadCount, antCount, q0, rho, initialPheromone, evaporationRate);
+		solver = make_unique<ParallelSudokuAntSystem>(threadCount, antCount, q0, rho, initialPheromone, evaporationRate,
+		                                               commEarlyInterval, commLateInterval, commThreshold);
 	}
 	else if (algorithmId == 3)
 	{
@@ -453,7 +459,8 @@ int main(int argc, char* argv[])
 	{
 		// Algorithm 4: Multi-Thread Multi-Colony Ant System
 		solver = make_unique<MultiThreadMultiColonyAntSystem>(threadCount, antCount, q0, rho, initialPheromone, evaporationRate,
-		                                                       totalColonyCount, acsColonyCount, convergenceThreshold, entropyThreshold);
+		                                                       totalColonyCount, acsColonyCount, convergenceThreshold, entropyThreshold,
+		                                                       commEarlyInterval, commLateInterval, commThreshold);
 	}
 	else
 	{
