@@ -153,15 +153,11 @@ void MultiColonyThread::Initialize(const Board& puzzle)
 		{
 			float rho_mmas = mcas->colonyRho[c];
 			float best_pheromone_toAdd = mcas->pher0;
-			float n = (float)valuesPerCell;
+			float n = (float)numCells;
 			mcas->colonies[c].tauMax = best_pheromone_toAdd / rho_mmas;
 			mcas->colonies[c].tauMin = mcas->colonies[c].tauMax / (2.0f * n);
 		}
-		else // ACS
-		{
-			mcas->colonies[c].tauMax = mcas->colonies[c].tau0 * 10.0f;
-			mcas->colonies[c].tauMin = mcas->colonies[c].tau0 * 0.01f;
-		}
+		
 		mcas->colonies[c].lastImproveIter = 0;
 		
 		// Clear old ants
@@ -311,6 +307,12 @@ void MultiThreadMultiColonyAntSystem::ThreadWorker(int threadId, const Board& pu
 			if (useLocalStop ? shouldStop : stopFlag.load())
 				break;
 		}
+		else
+		{
+			// No communication this iteration -> apply normal MMAS pheromone update
+			// (ACS updates are already handled inside RunIteration)
+			thread->UpdateMmasPheromoneLocal();
+		}
 		
 		// Report progress
 		ReportProgress(threadId, iter, thread, puzzle);
@@ -433,60 +435,80 @@ void MultiColonyThread::RunIteration(const Board& puzzle)
 	for (int c = 0; c < mcas->numColonies; ++c)
 		(mcas->colonies[c].type == 0 ? acsIdx : mmasIdx).push_back(c);
 	
-	// Check ACS entropy: if < threshold -> pheromone fusion, else -> cooperative game
+	// Check ACS entropy: split by threshold and apply appropriate mechanism per colony
+	// Low entropy (< threshold) -> pheromone fusion
+	// High entropy (>= threshold) -> cooperative game allocation
 	std::vector<float> acsAllocated;
 	acsAllocated.resize(mcas->numColonies, 0.0f);
+	std::vector<int> acsLowEntropy;   // Below threshold -> pheromone fusion
+	std::vector<int> acsHighEntropy; // Above threshold -> cooperative game
+	
 	if (!acsIdx.empty())
 	{
-		bool hasLowEntropy = false;
+		// Split ACS colonies by entropy threshold
 		for (int cidx : acsIdx)
 		{
 			if (mcas->ComputeEntropy(mcas->colonies[cidx]) < mcas->entropyThreshold)
-			{
-				hasLowEntropy = true;
-				break;
-			}
+				acsLowEntropy.push_back(cidx);
+			else
+				acsHighEntropy.push_back(cidx);
 		}
-		if (hasLowEntropy)
+		
+		// Apply pheromone fusion to low entropy colonies
+		if (!acsLowEntropy.empty() && !mmasIdx.empty())
 		{
 			// Time Pheromone Fusion
 			auto startTime = std::chrono::steady_clock::now();
-			mcas->ApplyPheromoneFusion(acsIdx, mmasIdx);
+			mcas->ApplyPheromoneFusion(acsLowEntropy, mmasIdx);
 			auto endTime = std::chrono::steady_clock::now();
 			auto duration = std::chrono::duration_cast<std::chrono::duration<double>>(endTime - startTime);
 			pheromoneFusionTime += (float)duration.count();
 		}
-		else
+		
+		// Apply cooperative game allocation to high entropy colonies
+		if (!acsHighEntropy.empty())
 		{
 			// Time Cooperative Game Theory
 			auto startTime = std::chrono::steady_clock::now();
-			mcas->ACSCooperativeGameAllocate(acsIdx, acsAllocated);
+			mcas->ACSCooperativeGameAllocate(acsHighEntropy, acsAllocated);
 			auto endTime = std::chrono::steady_clock::now();
 			auto duration = std::chrono::duration_cast<std::chrono::duration<double>>(endTime - startTime);
 			cooperativeGameTime += (float)duration.count();
+			
+			// Update pheromone for high entropy colonies (using cooperative game allocation)
+			for (int c : acsHighEntropy)
+			{
+				float add = acsAllocated[c];  // Use allocated pheromone from cooperative game
+				mcas->UpdatePheromone(c, mcas->colonies[c], mcas->colonies[c].bestSol, add);
+				mcas->colonies[c].bestPher *= (1.0f - mcas->bestEvap);
+			}
 		}
 	}
 	
-	// Apply pheromone updates per type
-	for (int c : acsIdx)
+	// Check MMAS convergence speed: apply appropriate mechanism
+	// Low convergence speed (< threshold) -> public path recommendation
+	// High convergence speed (>= threshold) -> update pheromone (handled in ThreadWorker if no communication)
+	if (!mmasIdx.empty())
 	{
-		float add = (acsAllocated[c] > 0.0f) ? acsAllocated[c] : mcas->colonies[c].bestPher;
-		mcas->UpdatePheromone(c, mcas->colonies[c], mcas->colonies[c].bestSol, add);
-		mcas->colonies[c].bestPher *= (1.0f - mcas->bestEvap);
-	}
-	for (int c : mmasIdx)
-	{
-		mcas->UpdatePheromone(c, mcas->colonies[c], mcas->colonies[c].bestSol, mcas->colonies[c].bestPher);
-	}
-	
-	// Public path recommendation
-	{
-		// Time Public Path Recommendation
-		auto startTime = std::chrono::steady_clock::now();
-		mcas->ApplyPublicPathRecommendation(currentIteration, acsIdx, mmasIdx);
-		auto endTime = std::chrono::steady_clock::now();
-		auto duration = std::chrono::duration_cast<std::chrono::duration<double>>(endTime - startTime);
-		publicPathRecommendationTime += (float)duration.count();
+		int mmasCidx = mmasIdx[0];  // Single MMAS colony
+		// convergence rate con_t = iter_opt / iter_t
+		float con_t = (currentIteration > 0 ? ((float)mcas->colonies[mmasCidx].lastImproveIter / (float)currentIteration) : 1.0f);
+		
+		if (con_t < mcas->convThreshold)
+		{
+			// Low convergence speed -> public path recommendation
+			if (!acsIdx.empty())
+			{
+				// Time Public Path Recommendation
+				auto startTime = std::chrono::steady_clock::now();
+				mcas->ApplyPublicPathRecommendation(currentIteration, acsIdx, std::vector<int>{mmasCidx});
+				auto endTime = std::chrono::steady_clock::now();
+				auto duration = std::chrono::duration_cast<std::chrono::duration<double>>(endTime - startTime);
+				publicPathRecommendationTime += (float)duration.count();
+			}
+		}
+		// Note: High convergence speed -> normal UpdatePheromone is handled in ThreadWorker
+		// (either via UpdatePheromoneWithCommunication or UpdateMmasPheromoneLocal)
 	}
 	
 	// Note: currentIteration is now set by ThreadWorker before calling RunIteration
@@ -710,13 +732,54 @@ void MultiColonyThread::UpdatePheromoneWithCommunication()
 	}
 }
 
+// ----------------------------------------------------------------------------
+// UpdateMmasPheromoneLocal: Standard MMAS pheromone update when no communication
+// Note: PublicPathRecommendation is already handled in RunIteration for low convergence cases
+// This method only handles normal UpdatePheromone for high convergence speed cases
+// ----------------------------------------------------------------------------
+void MultiColonyThread::UpdateMmasPheromoneLocal()
+{
+	MultiColonyAntSystem* mcas = multiColonySystem;
+
+	// Find the (single) MMAS colony (type == 1)
+	int mmasIdx = -1;
+	for (int c = 0; c < mcas->numColonies; ++c)
+	{
+		if (mcas->colonies[c].type == 1)
+		{
+			mmasIdx = c;
+			break;
+		}
+	}
+
+	if (mmasIdx < 0)
+		return;  // No MMAS colony found
+
+	// Check convergence speed: only update if high convergence
+	// (Low convergence already got PublicPathRecommendation in RunIteration)
+	float con_t = (currentIteration > 0 ? ((float)mcas->colonies[mmasIdx].lastImproveIter / (float)currentIteration) : 1.0f);
+	
+	if (con_t >= mcas->convThreshold)
+	{
+		// High convergence speed -> normal pheromone update
+		mcas->UpdatePheromone(mmasIdx,
+		                      mcas->colonies[mmasIdx],
+		                      mcas->colonies[mmasIdx].bestSol,
+		                      mcas->colonies[mmasIdx].bestPher);
+	}
+
+
+	// Note: Low convergence speed already got PublicPathRecommendation in RunIteration
+
+}
+
 
 int MultiThreadMultiColonyAntSystem::CalculateInterval(int iteration)
 {
-	if (iteration < 300)
-		return 20;
+	if (iteration < 200)
+		return 100;
 	else
-		return -1;
+		return 10;
 }
 
 std::vector<int> MultiThreadMultiColonyAntSystem::GenerateMatchArray()

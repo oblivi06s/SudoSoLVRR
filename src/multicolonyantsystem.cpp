@@ -95,11 +95,7 @@ bool MultiColonyAntSystem::Solve(const Board &puzzle, float maxTime)
             colonies[c].tauMax = best_pheromone_toAdd / rho_mmas;
             colonies[c].tauMin = colonies[c].tauMax / (2.0f * n);
         }
-        else // ACS colonies can keep simple initial bounds
-        {
-            colonies[c].tauMax = colonies[c].tau0 * 10.0f;
-            colonies[c].tauMin = colonies[c].tau0 * 0.01f;
-        }
+
         colonies[c].lastImproveIter = 0;
         // create ants
         for (int i = 0; i < antsPerColony; i++)
@@ -181,60 +177,86 @@ bool MultiColonyAntSystem::Solve(const Board &puzzle, float maxTime)
         for (int c = 0; c < numColonies; ++c)
             (colonies[c].type == 0 ? acsIdx : mmasIdx).push_back(c);
 
-        // Check ACS entropy: if < threshold -> pheromone fusion, else -> cooperative game (paper pseudocode)
+        // Check ACS entropy: split by threshold and apply appropriate mechanism per colony
+        // Low entropy (< threshold) -> pheromone fusion
+        // High entropy (>= threshold) -> cooperative game allocation
         std::vector<float> acsAllocated; acsAllocated.resize(numColonies, 0.0f);
+        std::vector<int> acsLowEntropy;   // Below threshold -> pheromone fusion
+        std::vector<int> acsHighEntropy; // Above threshold -> cooperative game
+        
         if (!acsIdx.empty())
         {
-            bool hasLowEntropy = false;
+            // Split ACS colonies by entropy threshold
             for (int cidx : acsIdx)
             {
                 if (ComputeEntropy(colonies[cidx]) < entropyThreshold)
-                {
-                    hasLowEntropy = true;
-                    break;
-                }
+                    acsLowEntropy.push_back(cidx);
+                else
+                    acsHighEntropy.push_back(cidx);
             }
-            if (hasLowEntropy)
+            
+            // Apply pheromone fusion to low entropy colonies
+            if (!acsLowEntropy.empty() && !mmasIdx.empty())
             {
                 // Time Pheromone Fusion
                 auto startTime = std::chrono::steady_clock::now();
-                ApplyPheromoneFusion(acsIdx, mmasIdx);
+                ApplyPheromoneFusion(acsLowEntropy, mmasIdx);
                 auto endTime = std::chrono::steady_clock::now();
                 auto duration = std::chrono::duration_cast<std::chrono::duration<double>>(endTime - startTime);
                 pheromoneFusionTime += (float)duration.count();
             }
-            else
+            
+            // Apply cooperative game allocation to high entropy colonies
+            if (!acsHighEntropy.empty())
             {
                 // Time Cooperative Game Theory
                 auto startTime = std::chrono::steady_clock::now();
-                ACSCooperativeGameAllocate(acsIdx, acsAllocated);
+                ACSCooperativeGameAllocate(acsHighEntropy, acsAllocated);
                 auto endTime = std::chrono::steady_clock::now();
                 auto duration = std::chrono::duration_cast<std::chrono::duration<double>>(endTime - startTime);
                 cooperativeGameTime += (float)duration.count();
+                
+                // Update pheromone for high entropy colonies (using cooperative game allocation)
+                for (int c : acsHighEntropy)
+                {
+                    float add = acsAllocated[c];  // Use allocated pheromone from cooperative game
+                    UpdatePheromone(c, colonies[c], colonies[c].bestSol, add);
+                    colonies[c].bestPher *= (1.0f - bestEvap);
+                }
             }
         }
 
-        // Apply pheromone updates per type
-        for (int c : acsIdx)
-        {
-            float add = (acsAllocated[c] > 0.0f) ? acsAllocated[c] : colonies[c].bestPher;
-            UpdatePheromone(c, colonies[c], colonies[c].bestSol, add);
-            colonies[c].bestPher *= (1.0f - bestEvap);
-        }
-        for (int c : mmasIdx)
-        {
-            UpdatePheromone(c, colonies[c], colonies[c].bestSol, colonies[c].bestPher);
-            // colonies[c].bestPher *= (1.0f - bestEvap); 
-        }
 
-        // Public path recommendation (only applied when convergence speed is low, checked inside function)
+        
+        // Check MMAS convergence speed: apply appropriate mechanism
+        // Low convergence speed (< threshold) -> public path recommendation
+        // High convergence speed (>= threshold) -> update pheromone
+        // Note: Only 1 MMAS colony, so no need to split into vectors
+        if (!mmasIdx.empty())
         {
-            // Time Public Path Recommendation
-            auto startTime = std::chrono::steady_clock::now();
-            ApplyPublicPathRecommendation(iter, acsIdx, mmasIdx);
-            auto endTime = std::chrono::steady_clock::now();
-            auto duration = std::chrono::duration_cast<std::chrono::duration<double>>(endTime - startTime);
-            publicPathRecommendationTime += (float)duration.count();
+            int mmasCidx = mmasIdx[0];  // MMAS colony
+            // convergence rate con_t = iter_opt / iter_t
+            float con_t = (iter > 0 ? ((float)colonies[mmasCidx].lastImproveIter / (float)iter) : 1.0f);
+            
+            if (con_t < convThreshold)
+            {
+                // Low convergence speed -> public path recommendation
+                if (!acsIdx.empty())
+                {
+                    // Time Public Path Recommendation
+                    auto startTime = std::chrono::steady_clock::now();
+                    ApplyPublicPathRecommendation(iter, acsIdx, std::vector<int>{mmasCidx});
+                    auto endTime = std::chrono::steady_clock::now();
+                    auto duration = std::chrono::duration_cast<std::chrono::duration<double>>(endTime - startTime);
+                    publicPathRecommendationTime += (float)duration.count();
+                }
+            }
+            else
+            {
+                // High convergence speed -> update pheromone
+                UpdatePheromone(mmasCidx, colonies[mmasCidx], colonies[mmasCidx].bestSol, colonies[mmasCidx].bestPher);
+                // colonies[mmasCidx].bestPher *= (1.0f - bestEvap); 
+            }
         }
 
         ++iter;
@@ -274,24 +296,83 @@ void MultiColonyAntSystem::ClampPheromone(Colony &c)
     }
 }
 
-// Shannon entropy of pheromone distribution for a colony
+// Helper function to check if two boards have identical fixed cells
+// Used for grouping identical solutions in entropy calculation
+static bool BoardsEqual(const Board& a, const Board& b)
+{
+    if (a.CellCount() != b.CellCount())
+        return false;
+    
+    for (int i = 0; i < a.CellCount(); ++i)
+    {
+        const ValueSet& cellA = a.GetCell(i);
+        const ValueSet& cellB = b.GetCell(i);
+        
+        // Both must be fixed or both unfixed
+        if (cellA.Fixed() != cellB.Fixed())
+            return false;
+        
+        // If fixed, values must match
+        if (cellA.Fixed() && cellA.Index() != cellB.Index())
+            return false;
+    }
+    
+    return true;
+}
+
+// Shannon entropy of solution distribution for a colony
+// E(Pt) = -Σ P_i(t) log P_i(t)
+// where P_i(t) = n_i / M (proportion of ants that chose solution i)
+// M = total number of ants
+// m = number of distinct solutions
+// n_i = number of ants that selected solution i
 float MultiColonyAntSystem::ComputeEntropy(const Colony &c) const
 {
-    double sum = 0.0;
-    for (int i = 0; i < c.numCells; ++i)
-        for (int j = 0; j < c.valuesPerCell; ++j)
-            sum += c.pher[i][j];
-    if (sum <= 0.0) return 0.0f;
-    double H = 0.0;
-    for (int i = 0; i < c.numCells; ++i)
+    if (c.ants.empty())
+        return 0.0f;
+    
+    int M = (int)c.ants.size();  // Total number of ants
+    
+    // Group solutions: count how many ants produced each distinct solution
+    std::vector<Board> distinctSolutions;
+    std::vector<int> solutionCounts;
+    
+    for (auto* ant : c.ants)
     {
-        for (int j = 0; j < c.valuesPerCell; ++j)
+        const Board& solution = ant->GetSolution();
+        
+        // Check if this solution already exists
+        bool found = false;
+        for (size_t i = 0; i < distinctSolutions.size(); ++i)
         {
-            double p = c.pher[i][j] / sum;
-            if (p > 0.0)
-                H -= p * std::log(p);
+            if (BoardsEqual(solution, distinctSolutions[i]))
+            {
+                solutionCounts[i]++;
+                found = true;
+                break;
+            }
+        }
+        
+        // If new distinct solution, add it
+        if (!found)
+        {
+            distinctSolutions.push_back(Board(solution));  // Make a copy
+            solutionCounts.push_back(1);
         }
     }
+    
+    // Compute entropy: E = -Σ P_i log(P_i)
+    // where P_i = n_i / M
+    double H = 0.0;
+    for (size_t i = 0; i < distinctSolutions.size(); ++i)
+    {
+        double p = (double)solutionCounts[i] / (double)M;
+        if (p > 0.0)
+        {
+            H -= p * std::log2(p);
+        }
+    }
+    
     return (float)H;
 }
 
@@ -335,36 +416,18 @@ void MultiColonyAntSystem::ACSCooperativeGameAllocate(std::vector<int> &acsIdx,
     }
 }
 
-// Mix ACS pheromone with MMAS pheromone when ACS entropy below fixed threshold (E(p)* = 4)
+// Mix ACS pheromone with MMAS pheromone when ACS entropy below fixed threshold 
 void MultiColonyAntSystem::ApplyPheromoneFusion(const std::vector<int> &acsIdx,
                                                 const std::vector<int> &mmasIdx)
 {
     if (acsIdx.empty() || mmasIdx.empty()) return;
-    // compute average MMAS entropy and average MMAS pheromone matrix
-    // build average pheromone matrix of MMAS
-    int nc = colonies[mmasIdx[0]].numCells;
-    int vp = colonies[mmasIdx[0]].valuesPerCell;
-    std::vector<float> avg(nc * vp, 0.0f);
-    for (int cidx : mmasIdx)
-    {
-        for (int i = 0; i < nc; ++i)
-            for (int j = 0; j < vp; ++j)
-                avg[i*vp + j] += colonies[cidx].pher[i][j];
-    }
-    for (auto &v : avg) v /= (float)mmasIdx.size();
-    // entropy of averaged MMAS matrix
-    Colony tmp;
-    tmp.pher = new float*[nc];
-    tmp.numCells = nc; tmp.valuesPerCell = vp;
-    for (int i = 0; i < nc; ++i)
-    {
-        tmp.pher[i] = new float[vp];
-        for (int j = 0; j < vp; ++j) tmp.pher[i][j] = avg[i*vp + j];
-    }
-    float eMMAS = ComputeEntropy(tmp);
-    for (int i = 0; i < nc; ++i) delete [] tmp.pher[i];
-    delete [] tmp.pher; tmp.pher = nullptr;
 
+    const Colony &mmasColony = colonies[mmasIdx[0]];
+    float eMMAS = ComputeEntropy(mmasColony);
+    
+    int nc = mmasColony.numCells;
+    int vp = mmasColony.valuesPerCell;
+    
     float eThresh = entropyThreshold;
 
     for (int cidx : acsIdx)
@@ -372,14 +435,17 @@ void MultiColonyAntSystem::ApplyPheromoneFusion(const std::vector<int> &acsIdx,
         float eACS = ComputeEntropy(colonies[cidx]);
         if (eACS < eThresh)
         {
-            // Base mix weight from entropies: Wi = E(ACS)/(E(ACS)+E(MMAS))
-            float mix = (eACS + eMMAS > 0.0f ? (eACS / (eACS + eMMAS)) : 0.0f);
-            // ph_i <- (1 - mix)*ph_i + mix*ph_mmas_avg
+           // Equation 17: Wi = E(ACS) / (E(ACS) + E(MMAS))
+            float totalE = eACS + eMMAS;
+            float mix = (totalE > 0.0f ? (eACS / totalE) : 0.0f);
+
+            // Equation 16: ph_acs = (1 - mix) * ph_acs + mix * ph_mmas
             for (int i = 0; i < nc; ++i)
             {
                 for (int j = 0; j < vp; ++j)
                 {
-                    colonies[cidx].pher[i][j] = (1.0f - mix) * colonies[cidx].pher[i][j] + mix * avg[i*vp + j];
+                    colonies[cidx].pher[i][j] = (1.0f - mix) * colonies[cidx].pher[i][j] + 
+                                                mix * mmasColony.pher[i][j];
                 }
             }
         }
@@ -387,6 +453,7 @@ void MultiColonyAntSystem::ApplyPheromoneFusion(const std::vector<int> &acsIdx,
 }
 
 // Recommend public paths from ACS to MMAS when MMAS convergence is slow
+// Note: mmasIdx should already contain only low-convergence-speed colonies
 void MultiColonyAntSystem::ApplyPublicPathRecommendation(int iter,
                                                          const std::vector<int> &acsIdx,
                                                          const std::vector<int> &mmasIdx)
@@ -396,6 +463,7 @@ void MultiColonyAntSystem::ApplyPublicPathRecommendation(int iter,
     int nc = colonies[acsIdx[0]].numCells;
     int vp = colonies[acsIdx[0]].valuesPerCell;
     std::vector<int> publicIdx(nc, -1);
+
     for (int cell = 0; cell < nc; ++cell)
     {
         bool allAgree = true;
@@ -404,6 +472,7 @@ void MultiColonyAntSystem::ApplyPublicPathRecommendation(int iter,
         {
             const Board &b = colonies[acsIdx[k]].bestSol;
             if (!b.GetCell(cell).Fixed()) { allAgree = false; break; }
+
             int idx = b.GetCell(cell).Index();
             if (k == 0) agreeIdx = idx;
             else if (idx != agreeIdx) { allAgree = false; break; }
@@ -415,22 +484,15 @@ void MultiColonyAntSystem::ApplyPublicPathRecommendation(int iter,
     float n = (float)nc;
     float tauPub = std::exp(-(float)iter) / n;
 
-    for (int cidx : mmasIdx)
+    // Apply public path recommendation to all MMAS colonies (already filtered by convergence speed)
+    Colony &mmasColony = colonies[mmasIdx[0]];
+    for (int cell = 0; cell < nc; ++cell)
     {
-        // convergence rate con_t = iter_opt / iter_t
-        float con_t = (iter > 0 ? ((float)colonies[cidx].lastImproveIter / (float)iter) : 1.0f);
-        float threshold = this->convThreshold;
-        if (con_t < threshold)
+        int idx = publicIdx[cell];
+        if (idx >= 0)
         {
-            for (int cell = 0; cell < nc; ++cell)
-            {
-                int idx = publicIdx[cell];
-                if (idx >= 0)
-                {
-                    colonies[cidx].pher[cell][idx] += tauPub;
-                }
-            }
-            ClampPheromone(colonies[cidx]);
+            mmasColony.pher[cell][idx] += tauPub;
         }
     }
+    ClampPheromone(mmasColony);
 }

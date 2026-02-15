@@ -64,6 +64,9 @@ public:
 	// Update pheromone with communication (only for MMAS colonies)
 	void UpdatePheromoneWithCommunication();
 	
+	// Update MMAS pheromone locally when there is no communication (single MMAS colony)
+	void UpdateMmasPheromoneLocal();
+	
 	// Get results
 	const Board& GetIterationBest() const { return iterationBest; }
 	const Board& GetBestSol() const { return bestSol; }
