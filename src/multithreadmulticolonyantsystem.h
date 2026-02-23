@@ -52,7 +52,7 @@ private:
 	
 public:
 	MultiColonyThread(int id, int antsPerColony, float q0, float rho, float pher0, float bestEvap,
-	               int numColonies, int numACS, float convThreshold, float entropyThreshold);
+	               int numColonies, int numACS, float convThreshold, float entropyThreshold, float xi);
 	~MultiColonyThread();
 	
 	// Initialize for a new puzzle
@@ -153,7 +153,7 @@ private:
 public:
 	MultiThreadMultiColonyAntSystem(int numThreads, int antsPerColony, float q0, float rho,
 	                             float pher0, float bestEvap, int numColonies, int numACS,
-	                             float convThreshold, float entropyThreshold,
+	                             float convThreshold, float entropyThreshold, float xi,
 	                             int commEarlyInterval = 100, int commLateInterval = 10, int commThreshold = 200);
 	~MultiThreadMultiColonyAntSystem();
 	

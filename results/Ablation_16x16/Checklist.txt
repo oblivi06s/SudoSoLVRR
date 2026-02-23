@@ -1,0 +1,15 @@
+List 16 x 16 Sudoku
+
+nAnts per colony		-	
+q0				- Done
+xi				- 
+rho				- Done
+evap				- Done
+timeout				- 
+number of acs			- 
+convergenceThreshold		- 
+EntropyThreshold		-
+Thread count			- Done
+communicationThreshold		-
+earlyComm			-
+lateComm			-

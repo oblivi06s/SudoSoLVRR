@@ -14,6 +14,7 @@ import os
 import re
 import sys
 import statistics
+import math
 from collections import defaultdict
 from dataclasses import dataclass
 from datetime import datetime
@@ -165,6 +166,7 @@ def build_solver_command(
         "subcolonies": "--subcolonies",
         "convthreshold": "--convthreshold",
         "entropythreshold": "--entropythreshold",
+        "xi": "--xi",
         "comm-early-interval": "--comm-early-interval",
         "comm-late-interval": "--comm-late-interval",
         "comm-threshold": "--comm-threshold",
@@ -255,7 +257,7 @@ def parse_solver_output(stdout: str, stderr: str) -> Tuple[Optional[bool], Optio
     return success, solve_time, iterations
 
 
-def calculate_statistics(results_list: List[Tuple[bool, float, int]]) -> Dict[str, float]:
+def calculate_statistics(results_list: List[Tuple[bool, float, int, float]]) -> Dict[str, float]:
     """Calculate statistics from a list of results."""
     if not results_list:
         return {
@@ -263,25 +265,29 @@ def calculate_statistics(results_list: List[Tuple[bool, float, int]]) -> Dict[st
             "avg_time": 0.0,
             "std_dev": 0.0,
             "avg_iteration": 0.0,
+            "applied_threshold": 0.0,
         }
 
-    successes = sum(1 for success, _, _ in results_list if success)
+    successes = sum(1 for success, _, _, _ in results_list if success)
     total = len(results_list)
     success_rate = (successes / total * 100.0) if total > 0 else 0.0
 
     # Only include successful runs in time and iteration statistics
-    successful_times = [time for success, time, _ in results_list if success and time is not None]
-    successful_iterations = [iter for success, _, iter in results_list if success and iter is not None]
+    successful_times = [time for success, time, _, _ in results_list if success and time is not None]
+    successful_iterations = [iter for success, _, iter, _ in results_list if success and iter is not None]
 
     avg_time = statistics.mean(successful_times) if successful_times else 0.0
     std_dev = statistics.stdev(successful_times) if len(successful_times) > 1 else 0.0
     avg_iteration = statistics.mean(successful_iterations) if successful_iterations else 0.0
+
+    applied_threshold = results_list[0][3] if results_list else 0.0
 
     return {
         "success_rate": round(success_rate, 2),
         "avg_time": round(avg_time, 5),
         "std_dev": round(std_dev, 5),
         "avg_iteration": round(avg_iteration, 2),
+        "applied_threshold": applied_threshold,
     }
 
 
@@ -335,6 +341,7 @@ def write_excel_output(
         "q0": "q0",
         "rho": "rho",
         "evap": "evap",
+        "xi": "xi",
         "ants": "ants",
         "threads": "threads",
         "numacs": "numacs",
@@ -358,7 +365,15 @@ def write_excel_output(
 
     # Show other constant parameters (excluding the varying parameter)
     for param_key in sorted(constant_params.keys()):
-        if param_key != parameter_name and constant_params[param_key] is not None:
+        # Skip the parameter being varied (e.g., 'ants')
+        if param_key == parameter_name:
+            continue
+            
+        # NEW: Skip entropythreshold if we are currently varying 'ants'
+        if parameter_name == "ants" and param_key == "entropythreshold":
+            continue
+
+        if constant_params[param_key] is not None:
             display_name = param_display_names.get(param_key, param_key)
             ws[f'A{row}'] = display_name
             ws[f'B{row}'] = constant_params[param_key]
@@ -404,7 +419,16 @@ def write_excel_output(
         # Write parameter value label (merged cells for first column)
         ws.merge_cells(f'A{row}:A{row + len(instance_results) - 1}')
         cell = ws[f'A{row}']
-        cell.value = f"{parameter_name} = {param_value_str}"
+
+        # Get the threshold from the first instance in this group
+        first_instance = next(iter(instance_results.values()))
+        threshold = first_instance.get("applied_threshold", "N/A")
+
+        if parameter_name == "ants":
+            cell.value = f"{parameter_name} = {param_value_str}\n(Entropy Threshold: {threshold})"
+        else:
+            cell.value = f"{parameter_name} = {param_value_str}"
+
         cell.font = param_label_font
         cell.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
         cell.border = border
@@ -462,13 +486,28 @@ def run_ablation_experiment(
     verbose: bool = True,
 ) -> Dict[str, Dict[str, Dict[str, float]]]:
     """Run ablation experiment and return results."""
-    results: Dict[str, Dict[str, List[Tuple[bool, float, int]]]] = defaultdict(lambda: defaultdict(list))
+    results: Dict[str, Dict[str, List[Tuple[bool, float, int, float]]]] = defaultdict(lambda: defaultdict(list))
 
     total_experiments = len(parameter_values) * len(instances) * runs_per_instance
     current_experiment = 0
 
     for param_value in parameter_values:
         param_value_str = str(param_value)
+
+        if parameter_name == "ants":
+            num_ants = int(param_value)
+            max_entropy = (-num_ants) * ((1/num_ants) * math.log2(1/num_ants))
+            
+            # Calculate 92.5% of max entropy and round to 2 decimal places
+            adjusted_threshold = round(0.925 * max_entropy, 2)
+            
+            # Overwrite the entropy threshold for this specific run
+            constant_params["entropythreshold"] = adjusted_threshold
+            
+            if verbose:
+                print(f"  Ants changed to {num_ants}: Recalculating Entropy Threshold...")
+                print(f"  Max Entropy: {max_entropy:.4f} -> Threshold (92.5%): {adjusted_threshold}")
+
         if verbose:
             print(f"\n{'='*60}")
             print(f"Testing {parameter_name} = {param_value_str}")
@@ -479,7 +518,6 @@ def run_ablation_experiment(
             # Determine number of runs (100 for logic-solvable, runs_per_instance for general)
             is_logic_solvable = instance_meta.fixed_percentage is None
             num_runs = 100 if is_logic_solvable else runs_per_instance
-
             if verbose:
                 print(f"\nProcessing: {instance_meta.relative_path} ({instance_meta.size_label}) ({counter})")
 
@@ -508,7 +546,7 @@ def run_ablation_experiment(
                     if solve_time is None:
                         solve_time = timeout if not success else 0.0
 
-                    results[param_value_str][instance_meta.size_label].append((success, solve_time, iterations))
+                    results[param_value_str][instance_meta.size_label].append((success, solve_time, iterations, constant_params.get("entropythreshold")))
 
                     if verbose and num_runs > 1:
                         status = "OK" if success else "FAIL"
@@ -570,6 +608,7 @@ Examples:
     parser.add_argument("--q0", type=float, default=None, help="q0 parameter (constant)")
     parser.add_argument("--rho", type=float, default=None, help="rho parameter (constant)")
     parser.add_argument("--evap", type=float, default=None, help="evap parameter (constant)")
+    parser.add_argument("--xi", type=float, default=None, help="xi parameter (constant)")
     parser.add_argument("--threads", type=int, default=None, help="Number of threads (constant)")
     parser.add_argument("--numacs", type=int, default=None, help="Number of ACS colonies (constant)")
     parser.add_argument("--numcolonies", type=int, default=None, help="Total number of colonies (constant)")
@@ -589,8 +628,8 @@ Examples:
     # Validate parameter name
     valid_parameters = {
         "ants", "q0", "rho", "evap", "threads", "numacs", "numcolonies",
-        "subcolonies", "convthreshold", "entropythreshold",
-        "comm-early-interval", "comm-late-interval", "comm-threshold"
+        "xi", "convthreshold", "entropythreshold",
+        "comm-early-interval", "comm-late-interval", "comm-threshold", "timeout"
     }
     if args.parameter not in valid_parameters:
         print(f"Error: Invalid parameter '{args.parameter}'. Valid parameters: {', '.join(sorted(valid_parameters))}", file=sys.stderr)
@@ -644,12 +683,14 @@ Examples:
         "q0": args.q0,
         "rho": args.rho,
         "evap": args.evap,
+        "xi": args.xi,
         "threads": args.threads,
         "numacs": args.numacs,
         "numcolonies": args.numcolonies,
         "subcolonies": args.subcolonies,
         "convthreshold": args.convthreshold,
         "entropythreshold": args.entropythreshold,
+        "timeout": args.timeout,
         "comm-early-interval": getattr(args, "comm_early_interval", None),
         "comm-late-interval": getattr(args, "comm_late_interval", None),
         "comm-threshold": getattr(args, "comm_threshold", None),
