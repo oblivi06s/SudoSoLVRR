@@ -380,16 +380,22 @@ int main(int argc, char* argv[])
 	const int antCount = args.GetArg("ants", 10);  // Number of ants per colony
 	const float q0 = args.GetArg("q0", 0.9f);      // Exploitation vs exploration (0.0-1.0)
 	const float rho = args.GetArg("rho", 0.9f);    // Pheromone persistence (0.0-1.0)
-	const float evaporationRate = args.GetArg("evap", 0.005f);  // Pheromone evaporation rate
+	const float evaporationRate = args.GetArg("evap", 0.005f);  // Best Value Pheromone evaporation rate
+	const float xi = args.GetArg("xi", 0.1f); //Local Pheromone Update 
 	
 	// Parallel algorithm parameters (algorithms 2, 4)
 	const int threadCount = args.GetArg("threads", 3);  // Number of parallel threads
+	
+	// Communication interval parameters (algorithms 2, 4)
+	const int commEarlyInterval = args.GetArg("comm-early-interval", 100);  // Communication interval for early iterations
+	const int commLateInterval = args.GetArg("comm-late-interval", 10);     // Communication interval for late iterations
+	const int commThreshold = args.GetArg("comm-threshold", 200);           // Iteration threshold for switching intervals
 	
 	// Multi-colony algorithm parameters (algorithms 4)
 	const int acsColonyCount = args.GetArg("numacs", 3);  // Number of ACS colonies
 	const int totalColonyCount = args.GetArg("numcolonies", acsColonyCount + 1);  // Total colonies (ACS + MMAS)
 	const float convergenceThreshold = args.GetArg("convthreshold", 0.8f);  // Threshold for public path recommendation
-	const float entropyThreshold = args.GetArg("entropythreshold", 1.45f);  // Threshold for pheromone fusion
+	const float entropyThreshold = args.GetArg("entropythreshold", 1.47f);  // Threshold for pheromone fusion
 	
 	// Output control flags
 	const bool blank = args.GetArg("blank", false);         // Generate blank puzzle
@@ -441,19 +447,21 @@ int main(int argc, char* argv[])
 	else if (algorithmId == 2)
 	{
 		// Algorithm 2: Parallel ACS with multiple sub-colonies
-		solver = make_unique<ParallelSudokuAntSystem>(threadCount, antCount, q0, rho, initialPheromone, evaporationRate);
+		solver = make_unique<ParallelSudokuAntSystem>(threadCount, antCount, q0, rho, initialPheromone, evaporationRate,
+		                                               commEarlyInterval, commLateInterval, commThreshold);
 	}
 	else if (algorithmId == 3)
 	{
 		// Algorithm 3: Multi-Colony Ant System (single-threaded)
 		solver = make_unique<MultiColonyAntSystem>(antCount, q0, rho, initialPheromone, evaporationRate, 
-		                                           totalColonyCount, acsColonyCount, convergenceThreshold, entropyThreshold);
+		                                           totalColonyCount, acsColonyCount, convergenceThreshold, entropyThreshold, xi);
 	}
 	else if (algorithmId == 4)
 	{
 		// Algorithm 4: Multi-Thread Multi-Colony Ant System
 		solver = make_unique<MultiThreadMultiColonyAntSystem>(threadCount, antCount, q0, rho, initialPheromone, evaporationRate,
-		                                                       totalColonyCount, acsColonyCount, convergenceThreshold, entropyThreshold);
+		                                                       totalColonyCount, acsColonyCount, convergenceThreshold, entropyThreshold, xi, 
+		                                                       commEarlyInterval, commLateInterval, commThreshold);
 	}
 	else
 	{

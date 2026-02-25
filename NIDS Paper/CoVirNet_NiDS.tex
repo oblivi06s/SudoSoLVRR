@@ -1,0 +1,157 @@
+% This is samplepaper.tex, a sample chapter demonstrating the
+% LLNCS macro package for Springer Computer Science proceedings;
+% Version 2.20 of 2018/03/10
+%
+\documentclass[runningheads]{llncs}
+
+\usepackage[T1]{fontenc}
+\usepackage{float}
+\raggedbottom
+
+
+\def\doi#1{\href{https://doi.org/\detokenize{#1}}{\url{https://doi.org/\detokenize{#1}}}}
+%
+\usepackage{graphicx}
+\usepackage{amsmath} % Added for mathematical commands like \text
+% Used for displaying a sample figure. If possible, figure files should
+% be included in EPS format.
+%
+% If you use the hyperref package, please uncomment the following line
+% to display URLs in blue roman font according to Springer's eBook style:
+% \renewcommand\UrlFont{\color{blue}\rmfamily}
+%
+\usepackage{listings}
+\lstset{language=Pascal}
+% Please use the
+
+\begin{document}
+%
+\title{SudoSLVRR: A Multithreaded Multi-Colony Ant Optimization with Ring and Random Communication Topologies as Sudoku Solver}
+%
+%\titlerunning{Abbreviated paper title}
+% If the paper title is too long for the running head, you can set
+% an abbreviated paper title here
+%
+\author{John Michael E. Jabuen \and
+Gian Myrl Renomeron \and \\John Paul T. Yusiong}
+
+\institute{Division of Natural Science and Mathematics\\
+University of the Philippines Tacloban College\\
+Magsaysay Boulevard, Tacloban City 6500, Leyte, Philippines}
+
+\authorrunning{J.M. Jabuen et al.}
+\titlerunning{SudoSLVRR}
+% First names are abbreviated in the running head.
+% If there are more than two authors, 'et al.' is used.
+%
+\maketitle              % typeset the header of the contribution
+%
+\begin{abstract}
+    A popular logic-based combinatorial problem known as Sudoku is computationally expensive because of its interdependent constraints. From traditional solvers to heuristics approaches, although effective when it comes to smaller puzzles, faces difficulties with more complex puzzles. This paper presents SudoSLVRR, a parallel multi-colony ant optimization as sudoku solver that addresses scalability limitations of the existing solvers. This framework combines constraint propagation and multi-colony ant optimization with dynamic collaborative mechanism (DCM-ACO) inside the multithreaded environment. Each multi-colony ant is executed inside each thread where threads exchange their iteration-best solution and best-so-far solution in ring and random communication topologies, respectively. The three-source pheromone update is performed by each thread based on the received information. Experimental results on $9 \times 9$, $16 \times 16$, and $25 \times 25$ Sudoku puzzles shows that the proposed framework was able to achieve higher solution success rate and less solution completion time even in larger Sudoku puzzles when compared to single-colony ant and non-parallel multi-colony ant solvers. 
+
+
+
+\keywords{Constraint Satisfaction Problem \and Swarm Intelligence \and Ant Colony Optimization \and Dynamic Collaborative Mechanism \and Parallel Optimization }
+\end{abstract}
+%
+%
+%
+\section{Introduction}
+The rule of the logic-based Sudoku game includes filling the grid with numbers from 1 to $n$ without repetition to row, column, and subgrid. A valid Sudoku solution must simultaneously satisfy multiple interdependent constraints which makes it a good benchmark for constraint satisfaction problems~\cite{lloyd2020,simonis2005sudoku}. Backtracking is the popular traditional way of solving Sudoku~\cite{norvig2006solving,Schott,bhattarai2025study}. It tries to solve the puzzle by filling every cell with valid values then goes back to the previous assignment if it leads to invalid puzzle. It was then followed by heuristic approaches~\cite{crook2009pencil,bhattarai2025study} who mimicked human reasoning in solving Sudoku. However, these approaches suffered from exponential increase of time. To overcome this limitation, metaheuristic approaches specifically swarm-based algorithms emerged. Artificial Bee Colony (ABC)~\cite{pacurib2009}, Ant Colony Optimization (ACO)~\cite{lloyd2020}, and Particle Swarm Optimization (PSO)~\cite{PSO, GPSO} are a few examples of these approaches. Though ABC’s performance showed potential by simulating foraging behaviour, it still struggled on more complex Sudoku puzzles. Unlike PSO and ABC, ACO was able to provide solutions with less execution time thereby indicating that the convergence speed in ACO is faster. Due to its potential, a multi-colony ant optimization was designed to test its performance when there are multiple colonies of ants in the search space. The Dynamic Collaborative Multi-Colony Ant Optimization (DCM-ACO) allows sharing of pheromone information between multiple colonies which improves diversity and convergence speed thus outperforming the single colony~\cite{mo2022}. 
+Parallelization of swarm-based algorithms was developed as an effort to improve the performance of the algorithms. One of these is the Parallel Independent Runs (PIR) but no sharing of information between independent agents leads to redundant exploration in the search space ~\cite{yang2015}. There is another parallelization technique that focuses on ants which leads to synchronization overhead when a single ant updates global pheromone~\cite{randall2002}. 
+
+To address the exponential increase in time and stagnation, this paper proposes SudoSLVRR, a multithreaded sudoku solver that combines constraint propagation and DCM-ACO within threads that communicate according to the communication topologies. SudoSLVRR is designed to balance exploration and exploitation which improves scalability on large-scale Sudoku puzzles. 
+%
+
+\section{Related Work}
+
+\subsection{Dataset}
+
+
+
+\section{Results and Discussion}
+
+
+\section{Conclusions and Future Work}
+
+
+%
+% ---- Bibliography ----
+%
+% BibTeX users should specify bibliography style 'splncs04'.
+% References will then be sorted and formatted in the correct style.
+%
+% \bibliographystyle{splncs04}
+% \bibliography{mybibliography}
+%
+\begin{thebibliography}{8}
+
+    \bibitem{dorigo1992}
+    M. Dorigo, ``Optimization, Learning and Natural Algorithms,'' Ph.D. Dissertation, Politecnico di Milano, 1992.
+
+    \bibitem{yang2015}
+    Q. Yang and L. Fang, ``RMACO: A Randomly Matched Parallel Ant Colony Optimization,'' \emph{World Wide Web}, vol. 19, no. 6, pp. 1009--1022, 2015. [Online]. Available: https://doi.org/10.1007/s11280-015-0373-2
+
+    \bibitem{lloyd2020}
+    H. Lloyd and M. Amos, ``Solving Sudoku with Ant Colony Optimization,'' \emph{IEEE Transactions on Games}, vol. 12, no. 3, pp. 302--313, 2020. [Online]. Available: https://doi.org/10.1109/TG.2020.2969827
+
+    \bibitem{mo2022}
+    Y. Mo, Z. Tang, and L. Zhao, ``Multi-Colony Ant Optimization with Dynamic Collaborative Mechanism and Cooperative Game,'' \emph{Information Sciences}, vol. 608, pp. 892--908, 2022. [Online]. Available: https://doi.org/10.1016/j.ins.2022.06.055
+
+    \bibitem{manyam2024}
+    Y. Manyam, S. Sundaram, and A. Sahay, ``Sudoku Solver Algorithms: A Comparative Analysis,'' in \emph{2024 First International Conference for Women in Computing (InCoWoCo)}, IEEE, 2024, pp. 1--9. [Online]. Available: https://doi.org/10.1109/InCoWoCo58689.2024.10443752
+
+    \bibitem{pacurib2009}
+    J. A. Pacurib, G. M. M. Seno, and J. P. T. Yusiong, ``Solving Sudoku Puzzles Using Improved Artificial Bee Colony Algorithm,'' in \emph{2009 Fourth International Conference on Innovative Computing, Information and Control (ICICIC)}, 2009, pp. 885--888. [Online]. Available: https://doi.org/10.1109/ICICIC.2009.334
+
+    \bibitem{randall2002}
+    M. Randall and A. Lewis, ``A Parallel Implementation of Ant Colony Optimization,'' \emph{Journal of Parallel and Distributed Computing}, vol. 62, no. 9, pp. 1421--1432, 2002. [Online]. Available: https://doi.org/10.1006/jpdc.2002.1838
+
+    \bibitem{SSAS}
+    P. Malakonakis, M. Smerdis, E. Sotiriades, and A. Dollas, ``An FPGA-based Sudoku Solver based on Simulated Annealing methods,'' in \emph{2009 International Conference on Field-Programmable Technology}, 2009, pp. 522--525. [Online]. Available: https://doi.org/10.1109/FPT.2009.5377608
+
+    \bibitem{PSO}
+    S. McGerty, ``Solving Sudoku puzzles with particle swarm optimisation,'' \emph{Final Report, Macquarie University}, 2009.
+
+    \bibitem{simonis2005sudoku}
+    H. Simonis, ``Sudoku as a constraint problem,'' in \emph{CP Workshop on modeling and reformulating Constraint Satisfaction Problems}, vol. 12, 2005, pp. 13--27.
+
+    \bibitem{is2012techniques}
+    E. C. Chi, ``Techniques for Solving Sudoku Puzzles,'' \emph{arXiv preprint arXiv:1203.2295}, 2012.
+
+    \bibitem{yato2003complexity}
+    T. Yato and T. Seta, ``Complexity and completeness of finding another solution and its application to puzzles,'' \emph{IEICE Transactions on Fundamentals of Electronics, Communications and Computer Sciences}, vol. 86, no. 5, pp. 1052--1060, 2003.
+
+    \bibitem{norvig2006solving}
+    P. Norvig, ``Solving Every Sudoku Puzzle,'' 2006. [Online]. Available: http://norvig.com/sudoku.html
+
+    \bibitem{eppstein2006computational}
+    D. Eppstein, ``Computational Complexity of Games and Puzzles,'' in \emph{Proceedings of the International Conference on Fun with Algorithms}, 2006, pp. 1--12.
+
+    \bibitem{crook2009pencil}
+    J. F. Crook, ``A pencil-and-paper algorithm for solving Sudoku puzzles,'' \emph{Notices of the AMS}, vol. 56, no. 4, pp. 460--468, 2009.
+
+    \bibitem{mantere2007solving}
+    T. Mantere and J. Koljonen, ``Solving, rating and generating Sudoku puzzles with GA,'' in \emph{2007 IEEE Congress on Evolutionary Computation}, IEEE, 2007, pp. 1382--1389.
+
+    \bibitem{dorigo2004ant}
+    M. Dorigo and T. St\"{u}tzle, \emph{Ant Colony Optimization}. MIT press, 2004.
+
+    \bibitem{pedemonte2011bit}
+    M. Pedemonte, E. Alba, and F. Luna, ``Bit-parallel ACO for the traveling salesman problem,'' \emph{Applied Intelligence}, vol. 35, no. 3, pp. 346--357, 2011.
+
+    \bibitem{talbi2009metaheuristics}
+    E.-G. Talbi, \emph{Metaheuristics: From Design to Implementation}. John Wiley \& Sons, 2009.
+
+    \bibitem{Schott}
+    M. Schottlender, ``The effect of guess choices on the efficiency of a backtracking algorithm in a Sudoku solver,'' in \emph{IEEE Long Island Systems, Applications and Technology (LISAT) Conference 2014}, 2014, pp. 1--6. [Online]. Available: https://doi.org/10.1109/LISAT.2014.6845190
+
+    \bibitem{GPSO}
+    A. Moraglio and J. Togelius, ``Geometric particle swarm optimization for the sudoku puzzle,'' in \emph{Proceedings of the 9th Annual Conference on Genetic and Evolutionary Computation}, 2007, pp. 118--125. [Online]. Available: https://doi.org/10.1145/1276958.1276975
+
+    \bibitem{bhattarai2025study}
+    A. Bhattarai, D. Uprety, P. Pathak, S. N. Shrestha, S. Narkarmi, and S. Sigdel, ``A Study Of Sudoku Solving Algorithms: Backtracking and Heuristic,'' \emph{arXiv preprint arXiv:2507.09708}, 2025.
+
+
+\end{thebibliography}
+\end{document}

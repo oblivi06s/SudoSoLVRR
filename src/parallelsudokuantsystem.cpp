@@ -311,9 +311,11 @@ void SubColony::ReceiveBestSol(const Board& solution)
 // Constructor: Create the parallel system with N sub-colonies
 // ----------------------------------------------------------------------------
 ParallelSudokuAntSystem::ParallelSudokuAntSystem(int nSubColonies, int numAntsPerColony,
-	float q0, float rho, float pher0, float bestEvap)
+	float q0, float rho, float pher0, float bestEvap,
+	int commEarlyInterval, int commLateInterval, int commThreshold)
 	: numSubColonies(nSubColonies), maxTime(120.0f),
-	  globalBestScore(0), iterationsCompleted(0), communicationOccurred(false), solTime(0.0f), barrier(0), stopFlag(false)
+	  globalBestScore(0), iterationsCompleted(0), communicationOccurred(false), solTime(0.0f), barrier(0), stopFlag(false),
+	  commEarlyInterval(commEarlyInterval), commLateInterval(commLateInterval), commThreshold(commThreshold)
 {
 	// Create N independent sub-colonies
 	// Note: rho is used for both standard ACS global update and communication update
@@ -625,18 +627,18 @@ void ParallelSudokuAntSystem::SubColonyWorker(int colonyId, const Board& puzzle)
 		bool shouldCommunicate = false;
 		if (numSubColonies > 1)
 		{
-			// Before iteration 200: communicate every 100 iterations (at 100, 200)
-			// After iteration 200: communicate every 10 iterations (at 210, 220, etc.)
-		if (iter < 200)
-		{
-			// Every 100 iterations: 100, 200
-			shouldCommunicate = (iter % 100 == 0);
-		}
-		else
-		{
-			// Every 10 iterations: 210, 220, 230, etc.
-			shouldCommunicate = (iter % 10 == 0);
-		}
+			// Before commThreshold: communicate every commEarlyInterval iterations
+			// After commThreshold: communicate every commLateInterval iterations
+			if (iter < commThreshold)
+			{
+				// Every commEarlyInterval iterations
+				shouldCommunicate = (iter % commEarlyInterval == 0);
+			}
+			else
+			{
+				// Every commLateInterval iterations
+				shouldCommunicate = (iter % commLateInterval == 0);
+			}
 		}
 		// If numSubColonies == 1, shouldCommunicate stays false (always use Algorithm 0 update)
 		

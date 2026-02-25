@@ -1,0 +1,15 @@
+List 25 x 25 Sudoku
+
+nAnts per colony		-	
+q0				- 
+xi				- 
+rho				- 
+evap				- 
+timeout				- 
+number of acs			- 
+convergenceThreshold		- 
+EntropyThreshold		-
+Thread count			- Done
+communicationThreshold		-
+earlyComm			-
+lateComm			-

@@ -35,7 +35,7 @@
 // Constructor: Initialize a multi-colony thread with its own parameters
 // ----------------------------------------------------------------------------
 MultiColonyThread::MultiColonyThread(int id, int antsPerColony, float q0, float rho, float pher0, float bestEvap,
-                                     int numColonies, int numACS, float convThreshold, float entropyThreshold)
+                                     int numColonies, int numACS, float convThreshold, float entropyThreshold, float xi)
 	: threadId(id), currentIteration(0), iterationBestScore(0), bestSolScore(0),
 	  receivedIterationBestScore(0), receivedBestSolScore(0), numCells(0), numUnits(0), 
 	  dcmAcoTime(0.0f), cpTime(0.0f), cooperativeGameTime(0.0f), pheromoneFusionTime(0.0f), 
@@ -43,7 +43,7 @@ MultiColonyThread::MultiColonyThread(int id, int antsPerColony, float q0, float 
 {
 	// Create the multi-colony system
 	multiColonySystem = new MultiColonyAntSystem(antsPerColony, q0, rho, pher0, bestEvap,
-	                                             numColonies, numACS, convThreshold, entropyThreshold);
+	                                             numColonies, numACS, convThreshold, entropyThreshold, xi);
 }
 
 MultiColonyThread::~MultiColonyThread()
@@ -61,10 +61,12 @@ MultiColonyThread::~MultiColonyThread()
 // ----------------------------------------------------------------------------
 MultiThreadMultiColonyAntSystem::MultiThreadMultiColonyAntSystem(int nThreads, int antsPerColony,
 	float q0, float rho, float pher0, float bestEvap, int numColonies, int numACS,
-	float convThreshold, float entropyThreshold)
+	float convThreshold, float entropyThreshold, float xi,
+	int commEarlyInterval, int commLateInterval, int commThreshold)
 	: numThreads(nThreads), maxTime(120.0f),
 	  globalBestScore(0), iterationsCompleted(0), communicationOccurred(false), 
-	  solTime(0.0f), barrier(0), stopFlag(false)
+	  solTime(0.0f), barrier(0), stopFlag(false),
+	  commEarlyInterval(commEarlyInterval), commLateInterval(commLateInterval), commThreshold(commThreshold)
 {
 	// Allow threads=1 (behaves like Algorithm 3)
 	// No minimum thread requirement
@@ -73,7 +75,7 @@ MultiThreadMultiColonyAntSystem::MultiThreadMultiColonyAntSystem(int nThreads, i
 	for (int i = 0; i < numThreads; i++)
 	{
 		threads.push_back(new MultiColonyThread(i, antsPerColony, q0, rho, pher0, bestEvap,
-		                                       numColonies, numACS, convThreshold, entropyThreshold));
+		                                       numColonies, numACS, convThreshold, entropyThreshold, xi));
 	}
 	
 	// Initialize master random generator (for random topology matching)
@@ -776,10 +778,10 @@ void MultiColonyThread::UpdateMmasPheromoneLocal()
 
 int MultiThreadMultiColonyAntSystem::CalculateInterval(int iteration)
 {
-	if (iteration < 200)
-		return 100;
+	if (iteration < commThreshold)
+		return commEarlyInterval;
 	else
-		return 10;
+		return commLateInterval;
 }
 
 std::vector<int> MultiThreadMultiColonyAntSystem::GenerateMatchArray()

@@ -128,6 +128,11 @@ private:
 	std::atomic<int> barrier;
 	std::atomic<bool> stopFlag;
 	
+	// Communication interval parameters
+	int commEarlyInterval;  // Communication interval for iterations < commThreshold
+	int commLateInterval;   // Communication interval for iterations >= commThreshold
+	int commThreshold;      // Iteration number when switching from early to late interval
+	
 	// Communication helpers
 	std::vector<int> GenerateMatchArray();
 	void CommunicateRingTopology();
@@ -146,7 +151,8 @@ private:
 	
 public:
 	ParallelSudokuAntSystem(int numSubColonies, int numAntsPerColony, 
-	                        float q0, float rho, float pher0, float bestEvap);
+	                        float q0, float rho, float pher0, float bestEvap,
+	                        int commEarlyInterval = 100, int commLateInterval = 10, int commThreshold = 200);
 	~ParallelSudokuAntSystem();
 	
 	virtual bool Solve(const Board& puzzle, float maxTime);

@@ -1,0 +1,15 @@
+List 9 x 9 Sudoku
+
+nAnts per colony		- Done	
+q0				- Done
+xi				- Done
+rho				- Done
+evap				- Done
+timeout				- Done
+number of acs			- Done
+convergenceThreshold		- Done
+EntropyThreshold		- Done
+Thread count			- Done
+communicationThreshold		- Done
+earlyComm			- Done
+lateComm			- Done
