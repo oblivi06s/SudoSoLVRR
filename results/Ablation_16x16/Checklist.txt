@@ -1,12 +1,12 @@
 List 16 x 16 Sudoku
 
-nAnts per colony		-	
+nAnts per colony		- Done	
 q0				- Done
-xi				- 
+xi				- Done
 rho				- Done
 evap				- Done
-timeout				- 
-number of acs			- 
+timeout				- Done
+number of acs			- Done
 convergenceThreshold		- 
 EntropyThreshold		-
 Thread count			- Done

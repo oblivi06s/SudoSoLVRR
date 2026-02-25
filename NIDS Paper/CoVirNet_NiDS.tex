@@ -1,0 +1,378 @@
+% This is samplepaper.tex, a sample chapter demonstrating the
+% LLNCS macro package for Springer Computer Science proceedings;
+% Version 2.20 of 2018/03/10
+%
+\documentclass[runningheads]{llncs}
+
+\usepackage[T1]{fontenc}
+\usepackage{float}
+\raggedbottom
+
+
+\def\doi#1{\href{https://doi.org/\detokenize{#1}}{\url{https://doi.org/\detokenize{#1}}}}
+%
+\usepackage{graphicx}
+\usepackage{amsmath} % Added for mathematical commands like \text
+% Used for displaying a sample figure. If possible, figure files should
+% be included in EPS format.
+%
+% If you use the hyperref package, please uncomment the following line
+% to display URLs in blue roman font according to Springer's eBook style:
+% \renewcommand\UrlFont{\color{blue}\rmfamily}
+%
+\usepackage{listings}
+\lstset{language=Pascal}
+% Please use the
+
+\begin{document}
+%
+\title{SudoSLVRR: A Multithreaded Multi-Colony Ant Optimization with Ring and Random Communication Topologies as Sudoku Solver}
+%
+%\titlerunning{Abbreviated paper title}
+% If the paper title is too long for the running head, you can set
+% an abbreviated paper title here
+%
+\author{John Michael E. Jabuen \and
+Gian Myrl Renomeron \and \\John Paul T. Yusiong}
+
+\institute{Division of Natural Science and Mathematics\\
+University of the Philippines Tacloban College\\
+Magsaysay Boulevard, Tacloban City 6500, Leyte, Philippines}
+
+\authorrunning{E. Acompañado et al.}
+\titlerunning{CoVirNet}
+% First names are abbreviated in the running head.
+% If there are more than two authors, 'et al.' is used.
+%
+\maketitle              % typeset the header of the contribution
+%
+\begin{abstract}
+    A popular logic-based combinatorial problem known as Sudoku is computationally expensive because of its interdependent constraints. From traditional solvers to heuristics approaches, although effective when it comes to smaller puzzles, faces difficulties with more complex puzzles. This paper presents SudoSLVRR, a parallel multi-colony ant optimization as sudoku solver that addresses scalability limitations of the existing solvers. This framework combines constraint propagation and multi-colony ant optimization with dynamic collaborative mechanism (DCM-ACO) inside the multithreaded environment. Each multi-colony ant is executed inside each thread where threads exchange their iteration-best solution and best-so-far solution in ring and random communication topologies, respectively. The three-source pheromone update is performed by each thread based on the received information. Experimental results on $9 \times 9$, $16 \times 16$, and $25 \times 25$ Sudoku puzzles shows that the proposed framework was able to achieve higher solution success rate and less solution completion time even in larger Sudoku puzzles when compared to single-colony ant and non-parallel multi-colony ant solvers. 
+
+
+
+\keywords{Constraint Satisfaction Problem \and Swarm Intelligence \and Ant Colony Optimization \and Dynamic Collaborative Mechanism \and Parallel Optimization }
+\end{abstract}
+%
+%
+%
+\section{Introduction}
+The rule of the logic-based Sudoku game includes filling the grid with numbers from 1 to $n$ without repetition to row, column, and subgrid. A valid Sudoku solution must simultaneously satisfy multiple interdependent constraints which makes it a good benchmark for constraint satisfaction problems [6][19]. Backtracking is the popular traditional way of solving Sudoku [13, 18, 1]. It tries to solve the puzzle by filling every cell with valid values then goes back to the previous assignment if it leads to invalid puzzle. It was then followed by heuristic approaches [2, 1] who mimicked human reasoning in solving Sudoku. However, these approaches suffered from exponential increase of time. To overcome this limitation, metaheuristic approaches specifically swarm-based algorithms emerged. Artificial Bee Colony (ABC) [14], Ant Colony Optimization (ACO)[6], and Particle Swarm Optimization (PSO)[10, 12] are a few examples of these approaches. Though ABC’s performance showed potential by simulating foraging behaviour, it still struggled on more complex Sudoku puzzles. Unlike PSO and ABC, ACO was able to provide solutions with less execution time thereby indicating that the convergence speed in ACO is faster. Due to its potential, a multi-colony ant optimization was designed to test its performance when there are multiple colonies of ants in the search space. The Dynamic Collaborative Multi-Colony Ant Optimization (DCM-ACO) allows sharing of pheromone information between multiple colonies which improves diversity and convergence speed thus outperforming the single colony[11]. 
+Parallelization of swarm-based algorithms was developed as an effort to improve the performance of the algorithms. One of these is the Parallel Independent Runs (PIR) but no sharing of information between independent agents leads to redundant exploration in the search space [20]. There is another parallelization technique that focuses on ants which leads to synchronization overhead when a single ant updates global pheromone [17]. 
+
+To address the exponential increase in time and stagnation, this paper proposes SudoSLVRR, a multithreaded sudoku solver that combines constraint propagation and DCM-ACO within threads that communicate according to the communication topologies. SudoSLVRR is designed to balance exploration and exploitation which improves scalability on large-scale Sudoku puzzles. 
+%
+
+\section{Related Work}
+There have been several attempts at classifying books by their genres, using methodologies that primarily fall into three categories: text-based, image-based, and the combination of these through a multimodal approach. Among these studies, some explore hybridization within the image-based pipeline where deep learning models are integrated with machine learning ones to improve performance.
+
+Iwana et al.~\cite{iwana2016judging}, who introduced the BookCover30 dataset, focused on image-based genre classification. Using AlexNet to extract visual features from book covers, they reported an accuracy of 24.7\%. Their analysis revealed that genres with visually ambiguous designs or overlapping stylistic elements across categories contributed to reduced prediction performance. These findings underscore the limitations of using visual features alone, particularly in datasets with high intra-class variability.
+
+A logical progression from these limitations is the adoption of models that incorporate multiple data types. The BookCover30 dataset supports this direction, as it includes not only book cover images but also accompanying textual metadata. With both modalities available, researchers have begun to investigate integrated models that leverage the strengths of each input type to improve classification accuracy.
+
+Among the first to explore this direction, Patel and Aggarwal proposed BGCNet, which uses ResNet-50 to process the image data and GloVe embeddings for the text, achieving an accuracy of 52.5\%. Independently, Kundu and Zhengalso adopted ResNet-50 for image classification but paired it with the Universal Sentence Encoder for the text component, which led to a higher accuracy of 56.1\%. These studies demonstrate that combining visual and textual inputs leads to notable improvements in genre classification, especially when each input stream is thoughtfully represented and tailored to capture its unique strengths.
+
+While earlier studies in multimodal book genre classification relied on standalone models, more recent work has explored hybridization in the image pipeline. Jayaram et al.~\cite{jayaram2020classifying} proposed an architecture that uses Inception-v3 to extract image features, which are then classified using a Support Vector Machine (SVM). In a separate pipeline, textual inputs are processed using a Multinomial Naive Bayes classifier. The study compares early and late fusion strategies, with late fusion yielding superior results and achieving a state-of-the-art accuracy of 60.1\% on the BookCover30 dataset. This model’s performance reveals how hybridizing deep learning models—paired with a well-designed fusion strategy—can meaningfully improve accuracy results.
+
+Beyond architectural choices, the performance of multimodal models also appears closely tied to the characteristics of the dataset. Ozsarfati et al.~\cite{ozsarfati2019book} explored text-based classification using only book titles and achieved 65.58\% accuracy with an LSTM model. Notably, the dataset they used was approximately four times larger than the BookCover30 dataset, which may have contributed to the higher text-based accuracy relative to models trained on the BookCover30 dataset. Chiang et al., using a different dataset as well, reported a multimodal accuracy of 62.4\%. Interestingly, their image-based model outperformed the text-based one (61.3\% versus 57.9\%)—a result that contrasts with patterns observed in the BookCover30 dataset, where text typically dominates. This suggests that the relative usefulness of each modality may depend on the richness and clarity of the available visual and textual cues. Similarly, Biradar et al.~\cite{biradar2019class} evaluated a multimodal model using Xception for images and GloVe for text on the Gutenberg Dataset, achieving 87.2\% accuracy. The performance hierarchy between text and image inputs (86.2\% versus 67.04\%) mirrors the trend observed in the BookCover30 dataset. However, when compared to the state-of-the-art accuracy on the BookCover30 dataset, this result is substantially higher. This highlights how differences in dataset quality and structure can significantly influence the performance ceiling of multimodal systems. 
+
+While multimodal models have shown strong potential, several important design spaces remain underexplored. Most existing hybrid approaches rely on machine learning classifiers like SVMs~\cite{jayaram2020classifying}, leaving deep hybrid architectures such as those that combine CNNs with ViTs—largely untapped. Likewise, image-based models continue to depend on standard RGB inputs, often overlooking the potential of alternative or combined color space representations. This study addresses these gaps by proposing a multimodal architecture that processes multiple color space input using a CNN–ViT image model.
+
+%
+Figure illustrates the main components of the proposed methodology. The image data is first preprocessed, then two of the color space representations are fed into a CNN–ViT model for classification. The best-performing configuration is selected as the image component of the multimodal model. Meanwhile, the text data is handled through a dedicated pipeline where book titles are tokenized and classified, and the top-performing model is selected for use as the text component. The two trained models are combined using a fusion policy, producing the final prediction of the multimodal network. The best multimodal setup is then deployed as a web-based platform for real-time genre classification.
+
+
+\subsection{Dataset}
+The BookCover30 dataset \cite{iwana2016judging} used in the study contains 57,000 book cover images evenly distributed across 30 book genres. It is pre-divided into training and testing subsets using a 90:10 ratio, with 51,300 images allocated for training and 5,700 for testing. Each class contains an equal number of samples, with 1,710 images per class in the training set and 190 in the test set. For this study, only the relevant data fields are extracted—namely, the image (provided in RGB format with a resolution of 224×224 pixels), book title, and their respective labels.
+
+
+The preprocessing pipeline for the image data shown in Figure~involves several steps. Each book cover image is first converted to RGB format, which serves as the base for generating two additional color space representations. All images are then resized to 224×224 pixels to ensure consistent input dimensions. Basic data augmentation techniques are applied to enhance the model’s generalization capability. After augmentation, the images are converted into tensors and normalized to a [0, 255] range. The final image tensors from the selected color spaces are then forwarded to the image classification model.
+
+
+For the text data, which consists of book titles, preprocessing begins with tokenization using a pretrained transformer-based tokenizer (See Figure~). Titles are segmented into subword units and mapped to token IDs using the tokenizer’s vocabulary. To ensure uniform input length, sequences are either truncated or padded to a predefined maximum. An attention mask is also generated to distinguish real tokens from padding. The vectorized input IDs and attention masks, along with their corresponding labels, are then fed into the text classification model.
+
+The proposed multimodal model is composed of two parallel pipelines: one for image classification and another for text classification. Each pipeline is independently trained and optimized before being fused at the decision level.
+
+In the image pipeline, the ResNeXt-101 32×4d architecture~\cite{xie2017aggregated,yalniz2019billionscale,,wightman2019timm}, pre-trained on a subset of YFCC100M~\cite{thomee2015yfcc100m}, is used as the base CNN. Leveraging its strength in capturing local patterns, the proposed network uses it to process book cover images using a selected color space.
+
+In parallel is the ViT-base architecture~\cite{dosovitskiy2020image}, a model pre-trained on the ImageNet21k dataset~\cite{deng2009imagenet}, processes the same image in a different color space. Unlike convolutional models, the Vision Transformer splits the image into fixed-size patches, linearly embeds them, and passes the resulting sequence through transformer layers. This enables the model to capture global dependencies and model the overall composition of the book cover.
+
+Before merging, the feature vectors from the CNN and ViT branches are passed through global average pooling in the CNN and token-wise mean pooling in the ViT. These vectors are then concatenated and passed through a fully connected layer followed by a classification head that generates genre predictions based on the book cover image alone.
+
+In the text pipeline, book titles are processed using the bert-base-uncased architecture, a language model trained on BookCorpus and English Wikipedia. It consists of stacked self-attention encoder layers that build contextual representations by modeling relationships between all tokens in a sequence. This allows the detection of genre-related patterns in phrasing and word choice.
+
+To generate the final prediction, class probabilities are obtained from both the CNN–ViT and BERT models using softmax activation. These probabilities are then combined using the Product-max heuristic~\cite{jayaram2020classifying}, a decision-level fusion strategy that multiplies the predicted class probabilities from each modality element-wise and selects the class with the highest resulting score. The final prediction $\pi(s)$ is defined by Equation:
+
+\begin{equation}
+\pi(s) = \arg\max_{a \in \mathcal{A}(s)} \left[P_A(a)^{w_A} \cdot P_B(a)^{w_B}\right]
+\label{productmax}
+\end{equation}
+
+where $P_A(a)$ and $P_B(a)$ are the predicted probabilities for class $a$ from the image and text pipelines, respectively. The weights $w_A$ and $w_B$ represent the relative contributions of each modality, determined through ablation experiments. $\mathcal{A}(s)$ denotes the set of possible class labels in state $s$, and $\pi(s)$ selects the class with the highest weighted product of probabilities.
+
+\subsection{Model Training and Evaluation}
+
+Training configurations for the CNN–ViT and BERT models are listed in Table~\ref{params}. 
+
+    \vspace{-3mm}
+    \begin{table} 
+        \caption{Performance metrics and training parameters for the multimodal model}\label{params}
+        \small 
+        \begin{tabular}{| p{0.24\textwidth} | p{0.43\textwidth} | p{0.31\textwidth} |}
+        \hline
+        \textbf{Hyperparameter} & \textbf{CNN \& ViT} & \textbf{BERT}                  
+        \\ \hline
+        Epochs & 10 & 10                                                        
+        \\ \hline
+        Batch size & 16 & 32                                                    
+        \\ \hline
+        Loss Function & Categorical Cross-Entropy & Categorical Cross-Entropy   
+        \\ \hline
+        Optimizer & Adam & Adam                                                 
+        \\ \hline
+        Learning rate & 3e-6 & 1e-5                                             
+        \\ \hline
+        Scheduler & Cosine Scheduler w/ Warmup (20\%) & None                    
+        \\ \hline
+        Dropout & 0.5 & 0.35                                                    
+        \\ \hline
+        Weight decay & 1e-3 & 1e-4                                              
+        \\ \hline
+        Evaluation Metric & Top-1, Top-3 & Top-1, Top-3                         
+        \\ \hline
+        \end{tabular}
+    \end{table}
+    \vspace{-3mm}
+
+    Both the image and text models were trained independently using the Categorical Cross-Entropy loss function, optimized with the Adam optimizer. This loss function, widely used for multi-class classification tasks, is defined in Equation:
+
+    \vspace{-3mm}
+    \begin{equation}
+        \text{Loss} = -\sum_{i=1}^{C} y_i \log(\hat{y}_i)
+        \label{lossfunction}
+    \end{equation}    
+
+    where $C$ is the total number of classes, $y_i$ is the true label, and $\hat{y}_i$ is the predicted probability of the class. 
+
+    After training, the final prediction is generated using the product-max heuristic~\cite{jayaram2020classifying} with a 40:60 weighting in favor of the text classification model.
+
+    \begin{equation}
+        \text{Top-1 Accuracy} = \frac{\text{Correct Top-1 Predictions}}{\text{Total Predictions}} \times 100
+        \label{top1}
+    \end{equation}
+    
+    \begin{equation}
+        \text{Top-3 Accuracy} = \frac{\text{Correct Predictions in Top-3}}{\text{Total Predictions}} \times 100
+        \label{top3}
+    \end{equation}
+
+    Model performance is evaluated using Top-1 and Top-3 accuracy metrics, following common practices in book genre classification~\cite{patel2020bgcnet}. Top-1 accuracy shown in Equation~\cite{kundu2020deep,jayaram2020classifying} reflects the percentage of predictions where the top-ranked label matches the ground truth, while Top-3 accuracy~\cite{kundu2020deep} shown in Equation captures cases where the correct label appears among the top three predictions.
+
+    The two classification models are evaluated individually and in the combined multimodal setup. Results are then evaluated against state-of-the-art models to benchmark CoVirNet's classification accuracy.
+
+    The specifications of the machine used in training and evaluation is specified in Table.
+    \vspace{-3mm}
+
+
+\section{Results and Discussion}
+The multimodal model was constructed using the best-performing fusion strategy and the optimal configurations detailed in Table~\ref{params}---setups that were identified through extensive experimental evaluation.
+
+\vspace{-3mm}
+\subsection*{Experiment I: Classification Model Results Comparison}
+
+\vspace{-7mm}
+\begin{table}
+    \centering
+    \caption{Classification models accuracies comparison}
+    \label{results}
+    \begin{tabular}{| p{0.4\textwidth} | p{0.23\textwidth} | p{0.23\textwidth} |}
+    \hline
+    \textbf{Model} & \textbf{Top-1 Accuracy} & \textbf{Top-3 Accuracy}\\ \hline
+    \multicolumn{3}{|l|}{\textbf{Image}} \\ \hline
+    ResNext101 32x4d (RGB) & 32.98\% & 53.67\% \\ \hline
+    ViT-base (RGB) & 35.18\% & 56.26\% \\ \hline
+    Parallel CNN (RGB + XYZ) & 33.61\% & 55.05\% \\ \hline
+    Parallel ViT (RGB + XYZ) & 36.26\% & 57.98\% \\ \hline
+    CNN-ViT (RGB + XYZ) & 36.74\% & 57.49\% \\ \hline
+    \multicolumn{3}{|l|}{\textbf{Text}} \\ \hline
+    BERT & 63.14\% & 82.04\% \\ \hline
+    \multicolumn{3}{|l|}{\textbf{Multimodal}} \\ \hline
+    CNN-ViT + BERT & \textbf{65.23\%} & \textbf{84.70\%} \\ \hline
+    \end{tabular}
+    \end{table}
+
+\vspace{-5mm}
+
+Table~\ref{results} presents the classification accuracies of all evaluated models across the image, text, and multimodal setups. Within the standalone image models, the ViT architecture demonstrated superior performance over its CNN counterpart. This trend is consistent with observations in other domains where ViTs have outperformed CNNs in image classification tasks~\cite{kim2023lightweight,mauricio2023comparing,takahashi2024comparison,uparkar2023vision}. 
+
+This behavior also holds when the input is expanded to include multiple color space representations. With RGB + XYZ as input, the ViT model outperformed the CNN model using the same configuration, suggesting that ViTs are better equipped in integrating information across multiple color representations.
+
+Hybridizing CNN and ViT led to the highest Top-1 accuracy among all image-only models, with the RGB + XYZ configuration achieving 36.74\%. This result shows the value of combining the local pattern sensitivity of CNNs with the global contextual awareness of ViTs, as similarly observed in recent literature~\cite{peng2023conformer,haruna2025exploring}.
+
+For the text-only setup, the BERT model achieved a much higher Top-1 accuracy of 63.14\%. The textual features of book covers are indeed reliable signals for genre prediction. This reinforces a consistent pattern observed in book genre classification, where text-based models tend to outperform their image-based counterparts~\cite{jayaram2020classifying}. 
+
+When combining both modalities, the multimodal models outperformed their unimodal counterparts. The CNN–ViT + BERT configuration yielded the best overall performance, with a Top-1 accuracy of 65.23\% and Top-3 accuracy of 84.70\%. Similar improvements through multimodal fusion have been reported in related work, where combining cover images and text features consistently led to better performance than using either modality alone~\cite{jayaram2020classifying}.
+
+\subsection*{Experiment II: Performance Comparison to State-of-the-Art Models}
+\vspace{-5mm}  
+\begin{table}
+    \centering
+    \caption{Performance comparison between image classification model to state-of-the-art results}
+    \label{sotaimage}
+    \begin{tabular}{| p{0.4\textwidth} | p{0.23\textwidth} | p{0.23\textwidth} |}
+    \hline
+    \textbf{Model} & \textbf{Top-1 Accuracy} & \textbf{Top-3 Accuracy}\\ \hline
+    
+    CNN-ViT (RGB + XYZ) & \textbf{36.74\%} & \textbf{57.49\%} \\ \hline
+    InceptionV3-SVM~\cite{jayaram2020classifying} & 34.60\% & - \\ \hline
+    ResNet-50~\cite{} & 29.60\% & 49.00\%\\ \hline
+    
+    \end{tabular}
+    \end{table}
+\vspace{-5mm}
+
+Experiment 2 compares the performance of each classification models to the state-of-the-art results. The CNN-ViT model outperformed the InceptionV3-SVM and ResNet-50 models in both Top-1 and Top-3 accuracies as detailed in Table. The results indicate that implementation of a hybrid model with multiple color spaces can improve the performance of image classification models. 
+\vspace{-5mm}
+\begin{table}
+    \centering
+    \caption{Performance comparison between text classification model to state-of-the-art results}
+    \label{sotatext}
+    \begin{tabular}{| p{0.4\textwidth} | p{0.23\textwidth} | p{0.23\textwidth} |}
+    \hline
+    \textbf{Model} & \textbf{Top-1 Accuracy} & \textbf{Top-3 Accuracy}\\ \hline
+    
+    BERT & \textbf{63.14\%} & \textbf{82.04\%}\\ \hline
+    Naïve Bayes~\cite{jayaram2020classifying} & 55.40\% & - \\ \hline
+    Universal Sentence Encoder~ & 52.60\% & 73.70\%\\ \hline
+    
+    \end{tabular}
+    \end{table}
+
+The text classification model in the proposed architecture outperformed the top-performing models in the literature as shown in Table. This shows that transformer-based models make more accurate predictions than traditional machine learning approaches—a result that’s been consistently reported in earlier studies on text classification.
+
+\vspace{-3mm}
+
+\begin{table}
+    \centering
+    \caption{Performance comparison between proposed multimodal model to state-of-the-art results}
+    \label{multimodal}
+    \begin{tabular}{| p{0.5\textwidth} | p{0.23\textwidth} | p{0.23\textwidth} |}
+    \hline
+    \textbf{Model} & \textbf{Top-1 Accuracy} & \textbf{Top-3 Accuracy}\\ \hline
+    
+    CNN-ViT + BERT & \textbf{65.23\%} & \textbf{84.70\%}\\ \hline
+    InceptionV3-SVM + Naïve Bayes~\cite{jayaram2020classifying} & 60.10\% & - \\ \hline
+    ResNet-50 + USE~ & 56.10\% & 77.7\%\\ \hline
+    
+    \end{tabular}
+    \end{table}
+
+\vspace{-4mm}
+The proposed multimodal model achieved a 5.13\% improvement in Top-1 accuracy and an 8.49\% improvement in Top-3 accuracy over state-of-the-art models (see Table~\ref{multimodal}). This result suggests that using two color space representations for the image input, adopting a hybrid image classification setup, and incorporating a deep learning-based text model leads to better performance than existing multimodal approaches.
+
+\section{Conclusions and Future Work}
+The findings show that combining dual color space inputs and a hybrid deep learning architecture can meaningfully improve performance in book genre classification. CoVirNet, which integrates ResNeXt and ViT encoders on RGB and XYZ images with a BERT-powered text branch, achieved 65.23\% Top-1 and 84.70\% Top-3 accuracy on the BookCover30 dataset. These results outperform their unimodal counterparts and existing multimodal baselines~\cite{jayaram2020classifying}.
+
+Particular attention was paid to model selection and input configuration. Textual inputs, even when used alone, yielded competitive results of 63.14\% Top-1 accuracy, showing their effectiveness in conveying genre-relevant information. In contrast, the image-only pipeline using the dual-color space configuration achieved a lower Top-1 accuracy of 36.74\%, but still outperformed single-color baselines.
+
+While the dataset used in this study was balanced, it lacked the depth and variation needed to fully capture the visual overlap between genres. This limitation makes clear the value of multimodal approaches in classification tasks where input signals are loosely defined. In domains like book cover design—where stylistic conventions vary and genre cues are neither fixed nor prescriptive—no single input can reliably capture the full semantic context. By combining multiple inputs, models are better equipped to handle ambiguity and produce more grounded predictions.
+
+Future work should address dataset limitations not only by expanding the size, diversity, and representativeness of genre samples, but also by reframing the task as multi-label classification. Books frequently span multiple genres, and forcing a single-label prediction fails to reflect this reality. Beyond these improvements, researchers may also explore fusion mechanisms that dynamically recalibrate modality contributions at the sample level, rather than relying on fixed heuristics like product-max. Lastly, incorporating interpretability tools such as saliency maps could further aid in diagnosing model behavior and identifying potential failure points.
+
+%
+% ---- Bibliography ----
+%
+% BibTeX users should specify bibliography style 'splncs04'.
+% References will then be sorted and formatted in the correct style.
+%
+% \bibliographystyle{splncs04}
+% \bibliography{mybibliography}
+%
+\begin{thebibliography}{8}
+    \bibitem{james2020libguides}
+    A. S. James, “Libguides: Wilkes judging a book by its cover: Home,” 2020. [Online]. Available: https://api.semanticscholar.org/CorpusID:229156710
+    
+    \bibitem{osinska2020eyetracking}
+    V. Osinska and G. Osinski, “Eye tracking experiment using book covers. visual data analysis in reference to mind space mapping,” Qualitative and Quantitative Methods in Libraries (QQML), vol. 9, no. 1, pp. 143–154, 2020.
+    
+    \bibitem{brown2006consuming}
+    S. Brown, Ed., Consuming Books: The Marketing and Consumption of Literature, 1st ed. London: Routledge, 2006.
+    
+    \bibitem{gudinavicius2017choosing}
+    A. Gudinaviˇcius and A. ˇSuminas, “Choosing a book by its cover: Analysis of a reader’s choice,” Journal of Documentation, vol. 74, no. 2, pp. 430–446, 2018.
+    
+    \bibitem{kundu2020deep}
+    C. Kundu and L. Zheng, “Deep multi-modal networks for book genre classification based on its cover,” arXiv preprint arXiv:2011.07658v1, 2020.
+
+    \bibitem{patel2020bgcnet}
+    S. Patel and D. Aggarwal, “BGCNet: a novel deep visual textual model for book genre classification,” 2020 European Conference on Computer Vision (ECCV), 08 2020. 
+
+    \bibitem{jayaram2020classifying}
+    R. Jayaram, H. Mallappa, P. S, M. B, and B. K J, “Classifying books by genre based on cover,” International Journal of Engineering and Advanced Technology, vol. 9, pp. 530–535, 06 2020.
+
+    \bibitem{deng2009imagenet}
+    J. Deng, W. Dong, R. Socher, L.-J. Li, K. Li, and L. Fei-Fei, “Imagenet: A large-scale hierarchical image database,” in 2009 IEEE Conference on Computer Vision and Pattern Recognition, 2009, pp. 248–255.
+
+    \bibitem{wu2020visual}
+    B. Wu, C. Xu, X. Dai, A. Wan, P. Zhang, Z. Yan, M. Tomizuka, J. Gonzalez, K. Keutzer, and P. Vajda, “Visual transformers: Token-based image representation and processing for computer vision,” arXiv preprint arXiv:2006.03677v4, 2020.
+
+    \bibitem{iwana2016judging}
+    B. K. Iwana, S. T. R. Rizvi, S. Ahmed, A. Dengel, and S. Uchida, “Judging a book by its cover,” arXiv preprint arXiv:1610.09204v3, 2017.
+
+    \bibitem{chiang2015class}
+    H. Chiang, Y. Ge, and C. Wu, “Classification of book genres,” Stanford University CS229 Fall 2015 Project, 2015.
+
+    \bibitem{skaggs2022trend}
+    R. Skaggs, “Trend accommodation in heteronomous fields: How established artists respond to changing conventions,” Poetics, vol. 94, 08 2022.
+
+    \bibitem{devlin2018bert}
+    J. Devlin, M. Chang, K. Lee, and K. Toutanova, “BERT: pre-training of deep bidirectional transformers for language understanding,” arXiv preprint arXiv:1810.04805v2, 2019.
+
+    \bibitem{chen2023bert}
+    J. Chen and K. Wang, “Bert-powered book genre classification,” Stanford CS224N Custom Project, Department of Computer Science, Stanford University, TA mentor: Swastika Dutta, 2023.
+
+    \bibitem{biradar2019class}
+    G. R. Biradar, R. JM, A. Varier, and M. Sudhir, “Classification of book genres using book cover and title,” in 2019 IEEE International Conference on Intelligent Systems and Green Technology (ICISGT), 2019, pp. 72–723.
+
+    \bibitem{xie2017aggregated}
+    S. Xie, R. Girshick, P. Doll´ar, Z. Tu, and K. He, “Aggregated residual transformations for deep neural networks,” in 2017 IEEE Conference on Computer Vision and Pattern Recognition (CVPR), 2017, pp. 5987–5995.
+
+    \bibitem{yalniz2019billionscale}
+    I. Z. Yalniz, H. J´egou, K. Chen, M. Paluri, and D. Mahajan, “Billion-scale semisupervised learning for image classification,” arXiv preprint arXiv:1905.00546, 2019.
+
+    \bibitem{he2015resnet}
+    K. He, X. Zhang, S. Ren, and J. Sun, “Deep residual learning for image recognition,” in Proceedings of the IEEE Conference on Computer Vision and Pattern Recognition (CVPR), June 2016, pp. 770–778.
+
+    \bibitem{wightman2019timm}
+    R. Wightman, “Pytorch image models,” https://github.com/huggingface/pytorch-image-models, 2019.
+
+    \bibitem{thomee2015yfcc100m}
+    B. Thomee, D. A. Shamma, G. Friedland, B. Elizalde, K. Ni, D. Poland, D. Borth, and L.-J. Li, “Yfcc100m: the new data in multimedia research,” Commun. ACM, vol. 59, no. 2, p. 64–73, Jan. 2016.
+
+    \bibitem{ozsarfati2019book}
+    E. Ozsarfati, E. Sahin, C. J. Saul, and A. Yilmaz, “Book genre classification based on titles with comparative machine learning algorithms,” 2019 IEEE 4th International Conference on Computer and Communication Systems (ICCCS), pp. 14–20, 2019.
+
+    \bibitem{dosovitskiy2020image}
+    A. Dosovitskiy, L. Beyer, A. Kolesnikov, D. Weissenborn, X. Zhai, T. Unterthiner, M. Dehghani, M. Minderer, G. Heigold, S. Gelly, J. Uszkoreit, and N. Houlsby, “An image is worth 16x16 words: Transformers for image recognition at scale,” in 9th International Conference on Learning Representations, ICLR 2021, Virtual Event, Austria, May 3-7, 2021. OpenReview.net, 2021.
+
+    \bibitem{peng2023conformer}
+    Z. Peng, Z. Guo, W. Huang, Y. Wang, L. Xie, J. Jiao, Q. Tian, and Q. Ye, “Conformer: Local features coupling global representations for recognition and detection,” IEEE Transactions on Pattern Analysis and Machine Intelligence, vol. 45, no. 8, pp. 9454–9468, 2023.
+    
+    \bibitem{haruna2025exploring}
+    Y. Haruna, S. Qin, A. H. Adama Chukkol, A. A. Yusuf, I. Bello, and A. Lawan, “Exploring the synergies of hybrid convolutional neural network and vision transformer architectures for computer vision: A survey,” Engineering Applications of Artificial Intelligence, vol. 144, p. 110057, 2025.
+
+    \bibitem{kim2023lightweight}
+    H. E. Kim, M. E. Maros, T. Miethke, M. Kittel, F. Siegel, and T. Ganslandt, “Lightweight visual transformers outperform convolutional neural networks for gram-stained image classification: An empirical study,” Biomedicines, vol. 11, no. 5, 2023
+    
+    \bibitem{mauricio2023comparing}
+    J. Maur´ıcio, I. Domingues, and J. Bernardino, “Comparing vision transformers and convolutional neural networks for image classification: A literature review,” Applied Sciences, vol. 13, no. 9, 2023.
+
+    \bibitem{takahashi2024comparison}
+    S. Takahashi, Y. Sakaguchi, N. Kouno, K. Takasawa, K. Ishizu, Y. Akagi, R. Aoyama, N. Teraya, A. Bolatkan, N. Shinkai, H. Machino, K. Kobayashi,K. Asada, M. Komatsu, S. Kaneko, M. Sugiyama, and R. Hamamoto, “Comparison of vision transformers and convolutional neural networks in medical image analysis: A systematic review,” Journal of Medical Systems, vol. 48, no. 1, p. 84, 2024
+
+    \bibitem{uparkar2023vision}
+    O. Uparkar, J. Bharti, R. Pateriya, R. K. Gupta, and A. Sharma, “Vision transformer outperforms deep convolutional neural network-based model in classifying x-ray images,” Procedia Computer Science, vol. 218, pp. 2338–2349, 2023, international Conference on Machine Learning and Data Engineering.
+
+
+\end{thebibliography}
+\end{document}

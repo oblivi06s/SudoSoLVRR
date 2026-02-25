@@ -7,9 +7,9 @@ rho				- Done
 evap				- Done
 timeout				- Done
 number of acs			- Done
-convergenceThreshold		- Ongoing
-EntropyThreshold		-
+convergenceThreshold		- Done
+EntropyThreshold		- Done
 Thread count			- Done
-communicationThreshold		-
-earlyComm			-
-lateComm			-
+communicationThreshold		- Done
+earlyComm			- Done
+lateComm			- Done
