@@ -1,12 +1,13 @@
-This is pdfTeX, Version 3.141592653-2.6-1.40.27 (MiKTeX 25.4) (preloaded format=pdflatex 2025.11.11)  25 FEB 2026 14:53
+This is pdfTeX, Version 3.141592653-2.6-1.40.27 (MiKTeX 25.4) (preloaded format=pdflatex 2025.11.11)  25 FEB 2026 15:14
 entering extended mode
  restricted \write18 enabled.
  file:line:error style messages enabled.
  %&-line parsing enabled.
-**"c:/Users/John Michael Jabuen/Documents/CMSC 199.2/Conference/CoVirNet_NiDS.t
-ex"
+**"c:/Users/John Michael Jabuen/Documents/Soduko Solver/SudoSoLVRR/NIDS Paper/C
+oVirNet_NiDS.tex"
 
-(c:/Users/John Michael Jabuen/Documents/CMSC 199.2/Conference/CoVirNet_NiDS.tex
+(c:/Users/John Michael Jabuen/Documents/Soduko Solver/SudoSoLVRR/NIDS Paper/CoV
+irNet_NiDS.tex
 LaTeX2e <2025-11-01>
 L3 programming layer <2025-10-24>
 
@@ -503,56 +504,77 @@ epstopdf-sys.cfg
 File: epstopdf-sys.cfg 2021/03/18 v2.0 Configuration of epstopdf for MiKTeX
 ))
 \c@lstlisting=\count342
- [1
+
+
+LaTeX Warning: Citation ` GPSO' on page 1 undefined on input line 60.
+
+[1
 
 {C:/Users/John Michael Jabuen/AppData/Local/MiKTeX/fonts/map/pdftex/pdftex.map}
-] [2]
-Overfull \hbox (1.93011pt too wide) in paragraph at lines 75--76
-\T1/cmr/m/n/10 dalone mod-els, more re-cent work has ex-plored hy-bridiza-tion 
-in the im-age pipeline.
- []
-
-[3]
-
-LaTeX Warning: Citation `' on page 4 undefined on input line 96.
-
-[4]
-Overfull \hbox (1.456pt too wide) in paragraph at lines 121--144
-[][] 
- []
-
-[5] [6]
-
-LaTeX Warning: Citation ` ' on page 7 undefined on input line 228.
-
-[7] [8]
-Underfull \hbox (badness 1117) in paragraph at lines 329--330
-[]\T1/cmr/m/n/9 J. De-vlin, M. Chang, K. Lee, and K. Toutanova, ^^PBERT: pre-tr
-aining of
+]
+Underfull \hbox (badness 2165) in paragraph at lines 102--103
+[]\T1/cmr/m/n/9 Y. Manyam, S. Sun-daram, and A. Sa-hay, ``Su-doku Solver Al-go-
+rithms: A
  []
 
 
-Underfull \hbox (badness 1715) in paragraph at lines 329--330
-\T1/cmr/m/n/9 deep bidi-rec-tional trans-form-ers for lan-guage un-der-stand-in
-g,^^Q arXiv preprint
+Underfull \hbox (badness 1975) in paragraph at lines 102--103
+\T1/cmr/m/n/9 Com-par-a-tive Anal-y-sis,'' in \T1/cmr/m/it/9 2024 First In-ter-
+na-tional Con-fer-ence for Women
  []
 
-[9] [10] (CoVirNet_NiDS.aux)
+
+Underfull \hbox (badness 10000) in paragraph at lines 102--103
+\T1/cmr/m/it/9 in Com-put-ing (In-CoWoCo)\T1/cmr/m/n/9 , IEEE, 2024, pp. 1--9. 
+[On-line]. Avail-able:
+ []
+
+[2]
+Underfull \hbox (badness 7486) in paragraph at lines 120--121
+[]\T1/cmr/m/n/9 E. C. Chi, ``Tech-niques for Solv-ing Su-doku Puz-zles,'' \T1/c
+mr/m/it/9 arXiv preprint
+ []
+
+
+Underfull \hbox (badness 10000) in paragraph at lines 126--127
+[]\T1/cmr/m/n/9 P. Norvig, ``Solv-ing Ev-ery Su-doku Puz-zle,'' 2006. [On-line]
+. Avail-able:
+ []
+
+
+Underfull \hbox (badness 1783) in paragraph at lines 150--151
+[]\T1/cmr/m/n/9 A. Moraglio and J. To-gelius, ``Ge-o-met-ric par-ti-cle swarm o
+p-ti-miza-tion for
+ []
+
+
+Underfull \hbox (badness 1831) in paragraph at lines 150--151
+\T1/cmr/m/n/9 the su-doku puz-zle,'' in \T1/cmr/m/it/9 Pro-ceed-ings of the 9th
+ An-nual Con-fer-ence on Ge-
+ []
+
+
+Underfull \hbox (badness 1132) in paragraph at lines 150--151
+\T1/cmr/m/it/9 netic and Evo-lu-tion-ary Com-pu-ta-tion\T1/cmr/m/n/9 , 2007, pp
+. 118--125. [On-line]. Avail-able:
+ []
+
+[3] (CoVirNet_NiDS.aux)
  ***********
 LaTeX2e <2025-11-01>
 L3 programming layer <2025-10-24>
  ***********
  ) 
 Here is how much of TeX's memory you used:
- 4233 strings out of 467871
- 63082 string characters out of 5411563
- 670540 words of memory out of 5000000
- 33088 multiletter control sequences out of 15000+600000
- 638819 words of font info for 62 fonts, out of 8000000 for 9000
+ 4204 strings out of 467871
+ 62600 string characters out of 5411563
+ 665540 words of memory out of 5000000
+ 33061 multiletter control sequences out of 15000+600000
+ 637636 words of font info for 60 fonts, out of 8000000 for 9000
  1141 hyphenation exceptions out of 8191
- 57i,12n,65p,1694b,334s stack positions out of 10000i,1000n,20000p,200000b,200000s
+ 57i,6n,65p,1865b,335s stack positions out of 10000i,1000n,20000p,200000b,200000s
  <C:\Users\John Michael Jabuen\AppData\Local\MiKTeX\fonts/pk/ljfour/jknappen/
-ec/dpi600\tcrm1000.pk> <C:\Users\John Michael Jabuen\AppData\Local\MiKTeX\fonts
+ec/dpi600\ecti0900.pk> <C:\Users\John Michael Jabuen\AppData\Local\MiKTeX\fonts
 /pk/ljfour/jknappen/ec/dpi600\ecbx1000.pk> <C:\Users\John Michael Jabuen\AppDat
 a\Local\MiKTeX\fonts/pk/ljfour/jknappen/ec/dpi600\ecbx1200.pk> <C:\Users\John M
 ichael Jabuen\AppData\Local\MiKTeX\fonts/pk/ljfour/jknappen/ec/dpi600\tcrm0900.
@@ -562,21 +584,12 @@ s/pk/ljfour/jknappen/ec/dpi600\ecrm0900.pk> <C:\Users\John Michael Jabuen\AppDa
 ta\Local\MiKTeX\fonts/pk/ljfour/jknappen/ec/dpi600\ecrm1000.pk> <C:\Users\John 
 Michael Jabuen\AppData\Local\MiKTeX\fonts/pk/ljfour/jknappen/ec/dpi600\ecbx1440
 .pk><C:/Users/John Michael Jabuen/AppData/Local/Programs/MiKTeX/fonts/type1/pub
-lic/amsfonts/cm/cmex10.pfb><C:/Users/John Michael Jabuen/AppData/Local/Programs
-/MiKTeX/fonts/type1/public/amsfonts/cm/cmmi10.pfb><C:/Users/John Michael Jabuen
-/AppData/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cmmi5.pfb><C:/Use
-rs/John Michael Jabuen/AppData/Local/Programs/MiKTeX/fonts/type1/public/amsfont
-s/cm/cmmi7.pfb><C:/Users/John Michael Jabuen/AppData/Local/Programs/MiKTeX/font
-s/type1/public/amsfonts/cm/cmr10.pfb><C:/Users/John Michael Jabuen/AppData/Loca
-l/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cmr7.pfb><C:/Users/John Michae
-l Jabuen/AppData/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cmr9.pfb>
-<C:/Users/John Michael Jabuen/AppData/Local/Programs/MiKTeX/fonts/type1/public/
-amsfonts/cm/cmsy10.pfb><C:/Users/John Michael Jabuen/AppData/Local/Programs/MiK
-TeX/fonts/type1/public/amsfonts/cm/cmsy7.pfb><C:/Users/John Michael Jabuen/AppD
-ata/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cmsy9.pfb>
-Output written on CoVirNet_NiDS.pdf (10 pages, 227434 bytes).
+lic/amsfonts/cm/cmmi10.pfb><C:/Users/John Michael Jabuen/AppData/Local/Programs
+/MiKTeX/fonts/type1/public/amsfonts/cm/cmr9.pfb><C:/Users/John Michael Jabuen/A
+ppData/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cmsy9.pfb>
+Output written on CoVirNet_NiDS.pdf (3 pages, 130594 bytes).
 PDF statistics:
- 416 PDF objects out of 1000 (max. 8388607)
+ 339 PDF objects out of 1000 (max. 8388607)
  0 named destinations out of 1000 (max. 500000)
  1 words of extra memory for PDF output out of 10000 (max. 10000000)
 

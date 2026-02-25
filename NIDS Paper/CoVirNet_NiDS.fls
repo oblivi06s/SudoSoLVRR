@@ -1,6 +1,6 @@
-PWD c:\Users\John Michael Jabuen\Documents\CMSC 199.2\Conference
+PWD c:\Users\John Michael Jabuen\Documents\Soduko Solver\SudoSoLVRR\NIDS Paper
 INPUT C:\Users\John Michael Jabuen\AppData\Local\MiKTeX\miktex\data\le\pdftex\pdflatex.fmt
-INPUT c:\Users\John Michael Jabuen\Documents\CMSC 199.2\Conference\CoVirNet_NiDS.tex
+INPUT c:\Users\John Michael Jabuen\Documents\Soduko Solver\SudoSoLVRR\NIDS Paper\CoVirNet_NiDS.tex
 OUTPUT CoVirNet_NiDS.log
 INPUT C:\Users\John Michael Jabuen\AppData\Local\Programs\MiKTeX\tex\latex\llncs\llncs.cls
 INPUT C:\Users\John Michael Jabuen\AppData\Local\Programs\MiKTeX\tex\latex\llncs\llncs.cls
@@ -87,15 +87,13 @@ INPUT C:\Users\John Michael Jabuen\AppData\Local\Programs\MiKTeX\fonts\tfm\publi
 INPUT C:\Users\John Michael Jabuen\AppData\Local\Programs\MiKTeX\fonts\tfm\jknappen\ec\tcrm0900.tfm
 INPUT C:\Users\John Michael Jabuen\AppData\Local\Programs\MiKTeX\fonts\tfm\jknappen\ec\ecrm1200.tfm
 INPUT C:\Users\John Michael Jabuen\AppData\Local\Programs\MiKTeX\fonts\tfm\jknappen\ec\ecbx1200.tfm
+INPUT C:\Users\John Michael Jabuen\AppData\Local\Programs\MiKTeX\fonts\tfm\jknappen\ec\ecbx1000.tfm
 OUTPUT CoVirNet_NiDS.pdf
 INPUT C:\Users\John Michael Jabuen\AppData\Local\MiKTeX\fonts\map\pdftex\pdftex.map
-INPUT C:\Users\John Michael Jabuen\AppData\Local\Programs\MiKTeX\fonts\tfm\jknappen\ec\ecbx1000.tfm
-INPUT C:\Users\John Michael Jabuen\AppData\Local\Programs\MiKTeX\fonts\tfm\jknappen\ec\tcrm1000.tfm
-INPUT C:\Users\John Michael Jabuen\AppData\Local\Programs\MiKTeX\fonts\tfm\jknappen\ec\ecrm0700.tfm
-INPUT C:\Users\John Michael Jabuen\AppData\Local\Programs\MiKTeX\fonts\tfm\jknappen\ec\ecrm0500.tfm
+INPUT C:\Users\John Michael Jabuen\AppData\Local\Programs\MiKTeX\fonts\tfm\jknappen\ec\ecti0900.tfm
 INPUT CoVirNet_NiDS.aux
-INPUT C:\Users\John Michael Jabuen\AppData\Local\MiKTeX\fonts\pk\ljfour\jknappen\ec\dpi600\tcrm1000.pk
-INPUT C:\Users\John Michael Jabuen\AppData\Local\MiKTeX\fonts\pk\ljfour\jknappen\ec\dpi600\tcrm1000.pk
+INPUT C:\Users\John Michael Jabuen\AppData\Local\MiKTeX\fonts\pk\ljfour\jknappen\ec\dpi600\ecti0900.pk
+INPUT C:\Users\John Michael Jabuen\AppData\Local\MiKTeX\fonts\pk\ljfour\jknappen\ec\dpi600\ecti0900.pk
 INPUT C:\Users\John Michael Jabuen\AppData\Local\MiKTeX\fonts\pk\ljfour\jknappen\ec\dpi600\ecbx1000.pk
 INPUT C:\Users\John Michael Jabuen\AppData\Local\MiKTeX\fonts\pk\ljfour\jknappen\ec\dpi600\ecbx1000.pk
 INPUT C:\Users\John Michael Jabuen\AppData\Local\MiKTeX\fonts\pk\ljfour\jknappen\ec\dpi600\ecbx1200.pk
@@ -110,23 +108,9 @@ INPUT C:\Users\John Michael Jabuen\AppData\Local\MiKTeX\fonts\pk\ljfour\jknappen
 INPUT C:\Users\John Michael Jabuen\AppData\Local\MiKTeX\fonts\pk\ljfour\jknappen\ec\dpi600\ecrm1000.pk
 INPUT C:\Users\John Michael Jabuen\AppData\Local\MiKTeX\fonts\pk\ljfour\jknappen\ec\dpi600\ecbx1440.pk
 INPUT C:\Users\John Michael Jabuen\AppData\Local\MiKTeX\fonts\pk\ljfour\jknappen\ec\dpi600\ecbx1440.pk
-INPUT C:\Users\John Michael Jabuen\AppData\Local\Programs\MiKTeX\fonts\type1\public\amsfonts\cm\cmex10.pfb
-INPUT C:\Users\John Michael Jabuen\AppData\Local\Programs\MiKTeX\fonts\type1\public\amsfonts\cm\cmex10.pfb
 INPUT C:\Users\John Michael Jabuen\AppData\Local\Programs\MiKTeX\fonts\type1\public\amsfonts\cm\cmmi10.pfb
 INPUT C:\Users\John Michael Jabuen\AppData\Local\Programs\MiKTeX\fonts\type1\public\amsfonts\cm\cmmi10.pfb
-INPUT C:\Users\John Michael Jabuen\AppData\Local\Programs\MiKTeX\fonts\type1\public\amsfonts\cm\cmmi5.pfb
-INPUT C:\Users\John Michael Jabuen\AppData\Local\Programs\MiKTeX\fonts\type1\public\amsfonts\cm\cmmi5.pfb
-INPUT C:\Users\John Michael Jabuen\AppData\Local\Programs\MiKTeX\fonts\type1\public\amsfonts\cm\cmmi7.pfb
-INPUT C:\Users\John Michael Jabuen\AppData\Local\Programs\MiKTeX\fonts\type1\public\amsfonts\cm\cmmi7.pfb
-INPUT C:\Users\John Michael Jabuen\AppData\Local\Programs\MiKTeX\fonts\type1\public\amsfonts\cm\cmr10.pfb
-INPUT C:\Users\John Michael Jabuen\AppData\Local\Programs\MiKTeX\fonts\type1\public\amsfonts\cm\cmr10.pfb
-INPUT C:\Users\John Michael Jabuen\AppData\Local\Programs\MiKTeX\fonts\type1\public\amsfonts\cm\cmr7.pfb
-INPUT C:\Users\John Michael Jabuen\AppData\Local\Programs\MiKTeX\fonts\type1\public\amsfonts\cm\cmr7.pfb
 INPUT C:\Users\John Michael Jabuen\AppData\Local\Programs\MiKTeX\fonts\type1\public\amsfonts\cm\cmr9.pfb
 INPUT C:\Users\John Michael Jabuen\AppData\Local\Programs\MiKTeX\fonts\type1\public\amsfonts\cm\cmr9.pfb
-INPUT C:\Users\John Michael Jabuen\AppData\Local\Programs\MiKTeX\fonts\type1\public\amsfonts\cm\cmsy10.pfb
-INPUT C:\Users\John Michael Jabuen\AppData\Local\Programs\MiKTeX\fonts\type1\public\amsfonts\cm\cmsy10.pfb
-INPUT C:\Users\John Michael Jabuen\AppData\Local\Programs\MiKTeX\fonts\type1\public\amsfonts\cm\cmsy7.pfb
-INPUT C:\Users\John Michael Jabuen\AppData\Local\Programs\MiKTeX\fonts\type1\public\amsfonts\cm\cmsy7.pfb
 INPUT C:\Users\John Michael Jabuen\AppData\Local\Programs\MiKTeX\fonts\type1\public\amsfonts\cm\cmsy9.pfb
 INPUT C:\Users\John Michael Jabuen\AppData\Local\Programs\MiKTeX\fonts\type1\public\amsfonts\cm\cmsy9.pfb
