@@ -395,7 +395,7 @@ int main(int argc, char* argv[])
 	const int acsColonyCount = args.GetArg("numacs", 3);  // Number of ACS colonies
 	const int totalColonyCount = args.GetArg("numcolonies", acsColonyCount + 1);  // Total colonies (ACS + MMAS)
 	const float convergenceThreshold = args.GetArg("convthreshold", 0.8f);  // Threshold for public path recommendation
-	const float entropyThreshold = args.GetArg("entropythreshold", 1.47f);  // Threshold for pheromone fusion
+	const float entropyThreshold = args.GetArg("entropythreshold", 2.15f);  // Threshold for pheromone fusion
 	
 	// Output control flags
 	const bool blank = args.GetArg("blank", false);         // Generate blank puzzle
