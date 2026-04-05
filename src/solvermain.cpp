@@ -377,7 +377,7 @@ int main(int argc, char* argv[])
 	int timeoutSeconds = args.GetArg("timeout", -1);  // -1 = auto-select based on puzzle size
 	
 	// Ant Colony Optimization parameters (algorithms 0, 2, 3, 4)
-	const int antCount = args.GetArg("ants", 10);  // Number of ants per colony
+	const int antCount = args.GetArg("ants", 3);  // Number of ants per colony
 	const float q0 = args.GetArg("q0", 0.9f);      // Exploitation vs exploration (0.0-1.0)
 	const float rho = args.GetArg("rho", 0.9f);    // Pheromone persistence (0.0-1.0)
 	const float evaporationRate = args.GetArg("evap", 0.005f);  // Best Value Pheromone evaporation rate
@@ -392,7 +392,7 @@ int main(int argc, char* argv[])
 	const int commThreshold = args.GetArg("comm-threshold", 200);           // Iteration threshold for switching intervals
 	
 	// Multi-colony algorithm parameters (algorithms 4)
-	const int acsColonyCount = args.GetArg("numacs", 3);  // Number of ACS colonies
+	const int acsColonyCount = args.GetArg("numacs", 2);  // Number of ACS colonies
 	const int totalColonyCount = args.GetArg("numcolonies", acsColonyCount + 1);  // Total colonies (ACS + MMAS)
 	const float convergenceThreshold = args.GetArg("convthreshold", 0.8f);  // Threshold for public path recommendation
 	const float entropyThreshold = args.GetArg("entropythreshold", 1.47f);  // Threshold for pheromone fusion

@@ -203,6 +203,7 @@ bool Rule1_Elimination(Board& board, int cellIndex)
 		board.SetCellDirect(cellIndex, board.GetCell(cellIndex) ^ fixedCellsConstraint);
 		return false;
 	}
+	
 }
 
 /*******************************************************************************
