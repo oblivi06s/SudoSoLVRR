@@ -163,6 +163,26 @@ bool MultiColonyAntSystem::Solve(const Board &puzzle, float maxTime)
                 globalBestPher = colonies[c].bestPher;
                 globalBestSol.Copy(colonies[c].bestSol);
                 globalBestVal = colonies[c].bestVal;
+
+                {
+                    int _nu = puzzle.GetNumUnits();
+                    int _ord = (_nu <= 9) ? 3 : (_nu <= 16) ? 4 : 5;
+                    std::string _flat;
+                    _flat.reserve(puzzle.CellCount());
+                    for (int _i = 0; _i < globalBestSol.CellCount(); _i++) {
+                        const ValueSet& _c = globalBestSol.GetCell(_i);
+                        if (_c.Fixed()) {
+                            int _idx = _c.Index();
+                            if (_nu == 9) _flat += (char)('1' + _idx);
+                            else if (_nu == 16) _flat += (_idx < 10) ? (char)('0' + _idx) : (char)('a' + _idx - 10);
+                            else _flat += (char)('a' + _idx);
+                        } else {
+                            _flat += '.';
+                        }
+                    }
+                    std::cout << "BEST_GRID " << _ord << " " << _flat << std::endl;
+                }
+
                 if (globalBestVal == puzzle.CellCount())
                 {
                     solved = true;

@@ -811,19 +811,43 @@ bool MultiThreadMultiColonyAntSystem::CheckTimeout()
 
 void MultiThreadMultiColonyAntSystem::ReportProgress(int threadId, int iteration, MultiColonyThread* thread, const Board& puzzle)
 {
-	if (threadId == 0 && iteration % 50 == 0)
+	if (threadId == 0)
 	{
 		std::lock_guard<std::mutex> lock(commMutex);
 		
 		// Find global best across all threads
 		int globalBest = 0;
+		int bestIdx = 0;
 		for (int i = 0; i < numThreads; i++)
 		{
 			int score = threads[i]->GetBestSolScore();
 			if (score > globalBest)
+			{
 				globalBest = score;
+				bestIdx = i;
+			}
 		}
-		
+
+		{
+			const Board& _brd = threads[bestIdx]->GetBestSol();
+			int _nu = puzzle.GetNumUnits();
+			int _ord = (_nu <= 9) ? 3 : (_nu <= 16) ? 4 : 5;
+			std::string _flat;
+			_flat.reserve(puzzle.CellCount());
+			for (int _i = 0; _i < _brd.CellCount(); _i++) {
+				const ValueSet& _c = _brd.GetCell(_i);
+				if (_c.Fixed()) {
+					int _idx = _c.Index();
+					if (_nu == 9) _flat += (char)('1' + _idx);
+					else if (_nu == 16) _flat += (_idx < 10) ? (char)('0' + _idx) : (char)('a' + _idx - 10);
+					else _flat += (char)('a' + _idx);
+				} else {
+					_flat += '.';
+				}
+			}
+			std::cout << "BEST_GRID " << _ord << " " << _flat << std::endl;
+		}
+
 		std::cerr << "Progress: iteration " << iteration << " (Global best-so-far: " 
 		          << globalBest << "/" << puzzle.CellCount() << ")" << std::endl;
 	}
