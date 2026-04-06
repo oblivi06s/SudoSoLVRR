@@ -3,11 +3,11 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <title>SudoPHASE</title>
+  <title>SudoSLVRR</title>
   <style>
     :root {
       /* Dark theme (default) */
-      --bg: #1a1b26;
+      --bg: #2F1F45;
       --surface: #24283b;
       --text: #c0caf5;
       --accent: #7aa2f7;
@@ -242,7 +242,7 @@
     button { padding: 0.5rem 1.25rem; background: var(--accent); color: var(--bg); border: none; border-radius: 6px; font-weight: 600; cursor: pointer; font-size: 0.95rem; }
     button:hover { filter: brightness(1.1); }
     button:disabled { opacity: 0.6; cursor: not-allowed; }
-    .result { margin-top: 1rem; padding: 1rem; background: var(--surface); border-radius: 8px; border: 1px solid var(--border); min-width: 280px; max-width: 100%; }
+    .result { margin-top: 1rem; padding: 1rem; background: var(--surface); border-radius: 8px; border: 1px solid var(--border); min-width: 280px; max-width: 100%; text-align: center; }
     .result.error { border-color: #f7768e; }
     .result .time { color: var(--success); font-weight: 600; }
     .result .meta { font-size: 0.85rem; opacity: 0.9; margin-top: 0.5rem; }
@@ -562,7 +562,7 @@
   </aside>
   <main class="main-area">
     <a href="/" class="back-link">← Main menu</a>
-    <h1>SudoPHASE</h1>
+    <h1>SudoSLVRR</h1>
     <p class="subtitle" id="subtitle">Puzzle · 0:00</p>
     <p class="subtitle" id="solverProgress" style="min-height:1.2em;font-size:0.8rem;opacity:0.85;margin-top:-0.35rem;"></p>
     <div class="grid-wrap">
@@ -576,7 +576,7 @@
   </main>
 
   <script>
-    const THEME_KEY = 'sudophaseTheme';
+    const THEME_KEY = 'sudoslvrrTheme';
 
     function applyTheme(theme) {
       if (theme !== 'light' && theme !== 'dark') theme = 'dark';
@@ -1195,14 +1195,17 @@
         resultEl.innerHTML = '<strong>Error</strong>: ' + (obj.error || 'Unknown error');
         return;
       }
+      const commText = obj.communication == null ? '?' : (obj.communication ? 'Triggered' : 'Not Triggered');
       let html = '';
       if (obj.success) {
-        html += '<span class="time">Solved in ' + (obj.time != null ? obj.time.toFixed(2) : '?') + ' s</span>';
-        if (obj.iterations != null) html += '<div class="meta">Iterations: ' + obj.iterations + '</div>';
-        if (obj.communication != null) html += '<div class="meta">Communication: ' + (obj.communication ? 'yes' : 'no') + '</div>';
+        html += '<div class="time">Execution Time: ' + (obj.time != null ? obj.time.toFixed(2) : '?') + ' seconds</div>';
+        html += '<div class="meta">Total Iterations: ' + (obj.iterations != null ? obj.iterations : '?') + '</div>';
+        html += '<div class="meta">Thread Communication: ' + commText + '</div>';
       } else {
-        html += 'No solution within timeout' + (obj.time != null ? ' (' + obj.time.toFixed(2) + ' s)' : '') + '.';
-        if (obj.iterations != null) html += '<div class="meta">Iterations: ' + obj.iterations + '</div>';
+        html += '<div class="meta" style="margin-bottom:0.5rem;">No solution within timeout.</div>';
+        html += '<div class="time">Execution Time: ' + (obj.time != null ? obj.time.toFixed(2) : '?') + ' seconds</div>';
+        html += '<div class="meta">Total Iterations: ' + (obj.iterations != null ? obj.iterations : '?') + '</div>';
+        html += '<div class="meta">Thread Communication: ' + commText + '</div>';
       }
       resultEl.innerHTML = html;
     }

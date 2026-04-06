@@ -1,5 +1,5 @@
 """
-SudoPHASE web app: serves the Sudoku UI and runs the C++ solver from the repo root.
+SudoSLVRR web app: serves the Sudoku UI and runs the C++ solver from the repo root.
 Algorithms exposed in the UI: 0 (ACS), 3 (multi-colony), 4 (multi-thread multi-colony).
 """
 from __future__ import annotations
@@ -427,7 +427,15 @@ def about_page():
 @app.route("/logo")
 def logo():
     directory = Path(app.root_path)
-    for name in ("SudoPhase_Logo.png", "templates/SudoPhase_Logo.png"):
+    for name in (
+        "SudoSLVRR logo.png",
+        "templates/SudoSLVRR logo.png",
+        "SudoPhase_Logo.png",
+        "templates/SudoPhase_Logo.png",
+        "SudoSLVRR.png",
+        "templates/SudoSLVRR.png",
+        "static/SudoSLVRR.png",
+    ):
         path = directory / name
         if path.is_file():
             return send_from_directory(directory, name)
